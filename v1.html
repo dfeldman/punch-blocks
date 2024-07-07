@@ -75,10 +75,6 @@
         const fpsDisplay = document.getElementById('fps');
         const alertDisplay = document.getElementById('alert');
 
-        const headDisplay = document.getElementById('head');
-        const leftWristDisplay = document.getElementById('leftWrist');
-        const rightWristDisplay = document.getElementById('rightWrist');
-
         let isGameRunning = false;
         let lastTimestamp = performance.now();
         let fps = 0;
@@ -94,12 +90,13 @@
         let leftWristPositions = [];
         let rightWristPositions = [];
 
-
         const videoElement = document.createElement('video');
         videoElement.style.display = 'none';
         document.body.appendChild(videoElement);
 
         function onResults(results) {
+            drawCircle([50,50], [0,0,0])
+
             const currentTimestamp = performance.now();
             fps = 1000 / (currentTimestamp - lastTimestamp);
             fpsHistory.push(fps);
@@ -112,12 +109,14 @@
             lastTimestamp = currentTimestamp;
 
             // Clear canvas
-            videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-            videoCtx.save();
+            //videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
+            //videoCtx.save();
             videoCtx.scale(-1, 1);
             videoCtx.translate(-videoCanvas.width, 0);
-            videoCtx.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
-            videoCtx.restore();
+            //videoCtx.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
+            drawCircle({x:0.5, y:0.5}, "red")
+            drawCircle({x:50, y:50}, "red")
+            //videoCtx.restore();
 
             // Check if poseLandmarks exists and has the required landmarks
             if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
@@ -136,23 +135,17 @@
                 results.poseLandmarks[16]  // Right wrist
             ];
 
-            // Clear canvas
-            videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-            videoCtx.fillStyle = '#000';
-            videoCtx.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
-
-            // Draw circles for left wrist, right wrist, and head
-            if (results.poseLandmarks) {
-                processLandmark(results.poseLandmarks[0], headPositions, 'blue', headDisplay, 'Head'); // Nose (head)
-                processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', leftWristDisplay, 'Left Wrist'); // Left wrist
-                processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', rightWristDisplay, 'Right Wrist'); // Right wrist
-            }
-
             if (!areLandmarksVisible(landmarksToCheck)) {
                 alertDisplay.textContent = "BACK UP";
             } else {
                 alertDisplay.textContent = "";
             }
+
+            // Process landmarks
+            console.log('Processing landmarks...');
+            processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head'); // Nose (head)
+            processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', 'Left Wrist'); // Left wrist
+            processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', 'Right Wrist'); // Right wrist
         }
 
         function areLandmarksVisible(landmarks) {
@@ -160,8 +153,8 @@
         }
 
         function processLandmark(landmark, positionArray, color, name) {
-            if (landmark && landmark.visibility > 0.50) {
-                console.log("Processing landmark", landmark)
+            return;
+            if (landmark && landmark.visibility > 0.75) {
                 const currentTime = performance.now();
                 positionArray.push({ x: landmark.x, y: landmark.y, time: currentTime });
                 positionArray = positionArray.filter(pos => currentTime - pos.time <= smoothingLevel * 100);
@@ -174,6 +167,8 @@
 
                 avgPosition.x /= positionArray.length;
                 avgPosition.y /= positionArray.length;
+
+                console.log(`Drawing ${name} at (${avgPosition.x}, ${avgPosition.y}) with color ${color}`);
 
                 // Draw the smoothed position
                 drawCircle(avgPosition, color);
@@ -188,6 +183,8 @@
                     const dt = (latestPos.time - previousPos.time) / 1000; // in seconds
 
                     const speed = Math.sqrt(dx * dx + dy * dy) * videoCanvas.width / dt;
+
+                    console.log(`${name} speed: ${speed.toFixed(2)} px/s`);
 
                     if (name === 'Left Wrist' && speed > speedThreshold) {
                         latestInput = 'l';
@@ -212,17 +209,35 @@
                     }
                 }
             }
+            drawCircle({x:0.5, y:0.5}, "red")
         }
 
+        // function drawCircle(position, color) {
+        //     // Convert normalized coordinates (0-1) to canvas coordinates
+        //     const x = position.x * videoCanvas.width;
+        //     const y = position.y * videoCanvas.height;
+
+        //     console.log(`drawCircle at (${x}, ${y}) with color ${color}`);
+        //     //videoCtx.save(); // Save the current state
+        //     videoCtx.beginPath();
+        //     videoCtx.arc(x, y, 10, 0, 2 * Math.PI);
+        //     videoCtx.fillStyle = color;
+        //     videoCtx.fill();
+        //     //videoCtx.restore(); // Restore the saved state
+        // }
+
         function drawCircle(position, color) {
-            console.log("drawCircle", position)
-            const x = videoCanvas.width - (position.x * videoCanvas.width);
+            const x = (videoCanvas.width - (position.x * videoCanvas.width))
             const y = position.y * videoCanvas.height;
+            console.log("DRAW CIRCLE AT", x, y)
+            videoCtx.save()
             videoCtx.beginPath();
             videoCtx.arc(x, y, 10, 0, 2 * Math.PI);
             videoCtx.fillStyle = color;
             videoCtx.fill();
+            videoCtx.restore();
         }
+
 
         const pose = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/${file}`
