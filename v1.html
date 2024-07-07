@@ -127,9 +127,9 @@ canvas {
         <label for="smoothing">Smoothing Level:</label>
         <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="1">
         <label for="speedThreshold">Punch Speed Threshold:</label>
-        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="10" value="3">
+        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="100" value="10">
         <label for="slowSpeedThreshold">Squat/Jump Speed Threshold:</label>
-        <input type="range" id="slowSpeedThreshold" name="slowSpeedThreshold" min="1" max="10" value="1">
+        <input type="range" id="slowSpeedThreshold" name="slowSpeedThreshold" min="1" max="100" value="5">
         <label for="jumpThreshold">Jump Height Threshold (%):</label>
         <input type="range" id="jumpThreshold" name="jumpThreshold" min="1" max="100" value="30">
         <label for="squatThreshold">Squat Height Threshold (%):</label>
@@ -214,8 +214,8 @@ canvas {
         const FPS_AVERAGE_COUNT = 10;
 
         let smoothingLevel = 1;
-        let speedThreshold = 3;
-        let slowSpeedThreshold = 1;
+        let speedThreshold = 10;
+        let slowSpeedThreshold = 5;
 
         let jumpThreshold = 0.7;
         let squatThreshold = 0.7;
@@ -297,9 +297,9 @@ canvas {
                 debounceCounters[input]++;
                 if (input === 'h') {
                     // Squatting and jumping gets 2x the debounce because it's a slower movement
-                    mult = 2;
+                    mult = 4;
                 } else if (input == 'u') {
-                    mult = 1; // not sure
+                    mult = 2; // not sure
                 }
                 if (debounceCounters[input] >= (debounceFrames*mult)) {
                     //console.log("DEBOUNCE VALUE", input, debounceCounters[input])
@@ -457,7 +457,7 @@ canvas {
                     const dy = latestPos.y - previousPos.y;
                     const dt = (latestPos.time - previousPos.time) / 1000; // in seconds
 
-                    const speed = Math.sqrt(dx * dx + dy * dy) * videoCanvas.width / dt;
+                    const speed = (Math.sqrt(dx * dx + dy * dy) * videoCanvas.width / dt) * 100;
 
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
@@ -485,19 +485,20 @@ canvas {
                     // Debouncer puts it in latestInput which then goes to the game
                     let input = null;
 
-                    if (name === 'Left Wrist' && speed*2 > speedThreshold && distance > minDistance) {
+                    if (name === 'Left Wrist' && speed > speedThreshold && distance > minDistance) {
                         input = 'l';
                         console.log('Punch Left');
 
-                    } else if (name === 'Right Wrist' && speed*2 > speedThreshold && distance > minDistance) {
+                    } else if (name === 'Right Wrist' && speed > speedThreshold && distance > minDistance) {
                         input = 'r';
 
                     } else if (name === 'Head') {
                         // These are reversed
-                        if (avgPosition.y > squatThreshold && speed*4 > slowSpeedThreshold) {
+                        if (avgPosition.y > squatThreshold && speed > slowSpeedThreshold) {
                             input = 'h';
                             // TODO jumping is really hard! You have to almost hover to get this to work
-                        } else if (avgPosition.y < jumpThreshold && speed*4 > slowSpeedThreshold && distance > minDistance) {
+                            // Removed mimimum distance for jumping
+                        } else if (avgPosition.y < jumpThreshold && speed > slowSpeedThreshold && distance > minDistance) {
                             input = 'u';
                         } else {
                             input = 'n';
@@ -949,7 +950,7 @@ canvas {
                     }
                 }
                 flashScreen();
-                playSoundEffect(fall)
+                playSoundEffect(audioFall)
             }
 
             // Flash the screen (for hard drop)
