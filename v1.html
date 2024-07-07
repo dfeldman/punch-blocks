@@ -128,7 +128,7 @@ canvas {
         <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="1">
         <label for="speedThreshold">Punch Speed Threshold:</label>
         <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="10" value="3">
-        <label for="speedThreshold">Squat/Jump Speed Threshold:</label>
+        <label for="slowSpeedThreshold">Squat/Jump Speed Threshold:</label>
         <input type="range" id="slowSpeedThreshold" name="slowSpeedThreshold" min="1" max="10" value="1">
         <label for="jumpThreshold">Jump Height Threshold (%):</label>
         <input type="range" id="jumpThreshold" name="jumpThreshold" min="1" max="100" value="30">
@@ -217,14 +217,14 @@ canvas {
         let speedThreshold = 3;
         let slowSpeedThreshold = 1;
 
-        let jumpThreshold = 0.3;
+        let jumpThreshold = 0.7;
         let squatThreshold = 0.7;
 
         let headPositions = [];
         let leftWristPositions = [];
         let rightWristPositions = [];
 
-        let debounceFrames = 2; // Number of frames to maintain the input before it's considered valid
+        let debounceFrames = 4; // Number of frames to maintain the input before it's considered valid
         let minDistance = 0.03; // Arm movements less than this are ignored
 
         let tutorialStep = 0;
@@ -252,16 +252,33 @@ canvas {
             'l': 'Punch left',
             'r': 'Punch right',
             'u': 'Jump',
-            'd': 'Squat',
+            'h': 'Squat',
             'n': 'No action'
         };
+
+        // Effects audio files
+        var audioLeft = new Audio('assets/effects/left.mp3');
+        var audioRight = new Audio('assets/effects/right.mp3');
+        var audioFall = new Audio('assets/effects/fall.mp3');
+        var audioRotate = new Audio('assets/effects/rotate.mp3');
+        //var audioLand = new Audio('assets/effects/land.mp3'); // not used
+
+
+        function playSoundEffect(audio) {
+            audio.currentTime = 0;
+            audio.play();
+        }
+
+
+
+
 
         // Debounce system
         let debounceCounters = {
             'l': 0,
             'r': 0,
             'u': 0,
-            'd': 0,
+            'h': 0,
             'n': 0,
         };
 
@@ -269,15 +286,22 @@ canvas {
             debounceCounters['l'] = 0;
             debounceCounters['r'] = 0;
             debounceCounters['u'] = 0;
-            debounceCounters['d'] = 0;
+            debounceCounters['h'] = 0;
             debounceCounters['n'] = 0;
 
         }
 
         function debounceInput(input) {
+            let mult = 1;
             if (input) {
                 debounceCounters[input]++;
-                if (debounceCounters[input] >= debounceFrames) {
+                if (input === 'h') {
+                    // Squatting and jumping gets 2x the debounce because it's a slower movement
+                    mult = 2;
+                } else if (input == 'u') {
+                    mult = 1; // not sure
+                }
+                if (debounceCounters[input] >= (debounceFrames*mult)) {
                     //console.log("DEBOUNCE VALUE", input, debounceCounters[input])
                     sendInput(input);
                     resetDebounceCounters();
@@ -290,8 +314,8 @@ canvas {
 
         function sendInput(input) {
             latestInput = input;
-            console.log("LATEST INPUT", inputToText[latestInput]);
-            alertDisplay.textContent = inputToText[latestInput];
+            //console.log("LATEST INPUT", inputToText[latestInput]);
+            if (input != 'n') alertDisplay.textContent = inputToText[latestInput];
         }
 
         // tutorial display
@@ -325,7 +349,7 @@ canvas {
                     latestInput = null;            
                     break;
                 case 4:
-                    if (latestInput === 'd') {
+                    if (latestInput === 'h') {
                         tutorialStep++;
                     }                    
                     latestInput = null;
@@ -388,12 +412,16 @@ canvas {
             } else {
                 alertDisplay.textContent = "";
                 videoErrorStatus = 0;
+            }
+            // Even if the video has an error, still attempt to process some remainng points
+            // Todo: I'm unsure about this. Certainly when squatting it's hard to keep the hands in view
+            // But, if the hands are not in view, the game will be unplayable.
             // Process landmarks
             //console.log('Processing landmarks...');
-                processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head'); // Nose (head)
-                processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', 'Left Wrist'); // Left wrist
-                processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', 'Right Wrist'); // Right wrist
-            }
+            processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head'); // Nose (head)
+            processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', 'Left Wrist'); // Left wrist
+            processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', 'Right Wrist'); // Right wrist
+            
         }
 
         function areLandmarksVisible(landmarks) {
@@ -457,18 +485,19 @@ canvas {
                     // Debouncer puts it in latestInput which then goes to the game
                     let input = null;
 
-                    if (name === 'Left Wrist' && speed > speedThreshold && distance > minDistance) {
+                    if (name === 'Left Wrist' && speed*2 > speedThreshold && distance > minDistance) {
                         input = 'l';
                         console.log('Punch Left');
 
-                    } else if (name === 'Right Wrist' && speed > speedThreshold && distance > minDistance) {
+                    } else if (name === 'Right Wrist' && speed*2 > speedThreshold && distance > minDistance) {
                         input = 'r';
 
                     } else if (name === 'Head') {
                         // These are reversed
-                        if (avgPosition.y > squatThreshold && speed > slowSpeedThreshold && distance > minDistance) {
-                            input = 'd';
-                        } else if (avgPosition.y < jumpThreshold && speed > slowSpeedThreshold && distance > minDistance) {
+                        if (avgPosition.y > squatThreshold && speed*4 > slowSpeedThreshold) {
+                            input = 'h';
+                            // TODO jumping is really hard! You have to almost hover to get this to work
+                        } else if (avgPosition.y < jumpThreshold && speed*4 > slowSpeedThreshold && distance > minDistance) {
                             input = 'u';
                         } else {
                             input = 'n';
@@ -580,6 +609,7 @@ canvas {
             document.getElementById('gameCanvas').style.display = 'block';
             document.getElementById('startGame').style.display = 'none';
             tutorialStep = 6; // Skip the tutorial if the user starts early
+            tutorialDisplay.textContent = ""; // Don't want to change this inside the game loop
             isGameRunning = true;
             gameLoop();
         });
@@ -605,7 +635,7 @@ canvas {
         const COLUMNS = 10;
         const ROWS = 20;
         const BLOCK_SIZE = 30;
-        const DROP_INTERVAL = 1000; // Milliseconds between automatic drops
+        const DROP_INTERVAL = 4000; // Milliseconds between automatic drops
 
         // Game state
         let gameField = Array(ROWS).fill().map(() => Array(COLUMNS).fill(-1));
@@ -919,7 +949,7 @@ canvas {
                     }
                 }
                 flashScreen();
-                playSound('hardDrop');
+                playSoundEffect(fall)
             }
 
             // Flash the screen (for hard drop)
@@ -934,11 +964,18 @@ canvas {
                 switch (latestInput) {
                     case 'l': 
                         currentPiece.x--;
-                        if (checkCollision()) currentPiece.x++;
+                        playSoundEffect(audioLeft) // TODO don't play if collission
+                        if (checkCollision()) {
+                            currentPiece.x++;
+                        }
                         break;
                     case 'r':
                         currentPiece.x++;
-                        if (checkCollision()) currentPiece.x--;
+                        playSoundEffect(audioRight) // TODO don't play if collission
+
+                        if (checkCollision()) {
+                            currentPiece.x--;
+                        }
                         break;
                     case 'd':
                         moveDown();
