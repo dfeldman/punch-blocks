@@ -7,7 +7,7 @@
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a2e; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; }
         #score { position: absolute; top: 20px; left: 20px; color: #e94560; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
-        #controls { position: absolute; top: 100px; left: 10px; display: flex; flex-direction: column; }
+        #controls { position: absolute; top: 100px; left: 10px; display: flex; flex-direction: column; color:white; }
         #fps { position: absolute; top: 10px; right: 10px; color: #e94560; }
         #alert { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; color: red; }
         canvas { display: none; }
@@ -23,13 +23,19 @@
     <div id="controls">
         <button id="startGame">Start Game</button>
         <label for="smoothing">Smoothing Level:</label>
-        <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="5">
-        <label for="speedThreshold">Speed Threshold:</label>
-        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="10" value="5">
+        <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="1">
+        <label for="speedThreshold">Punch Speed Threshold:</label>
+        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="10" value="3">
+        <label for="speedThreshold">Squat/Jump Speed Threshold:</label>
+        <input type="range" id="slowSpeedThreshold" name="slowSpeedThreshold" min="1" max="10" value="1">
         <label for="jumpThreshold">Jump Threshold (%):</label>
-        <input type="range" id="jumpThreshold" name="jumpThreshold" min="1" max="100" value="70">
+        <input type="range" id="jumpThreshold" name="jumpThreshold" min="1" max="100" value="30">
         <label for="squatThreshold">Squat Threshold (%):</label>
-        <input type="range" id="squatThreshold" name="squatThreshold" min="1" max="100" value="30">
+        <input type="range" id="squatThreshold" name="squatThreshold" min="1" max="100" value="70">
+        <label for="squatThreshold">Min Distance:</label>
+        <input type="range" id="minDistance" name="minDistance" min="1" max="100" value="3">
+        <label for="squatThreshold">Debounce Frames</label>
+        <input type="range" id="debounceFrames" name="debounceFrames" min="1" max="10" value="3">
     </div>
     <div id="info">
         <div id="fps">FPS: 0</div>
@@ -81,22 +87,58 @@
         let fpsHistory = [];
         const FPS_AVERAGE_COUNT = 10;
 
-        let smoothingLevel = 5;
-        let speedThreshold = 5;
-        let jumpThreshold = 0.7;
-        let squatThreshold = 0.3;
+        let smoothingLevel = 1;
+        let speedThreshold = 3;
+        let slowSpeedThreshold = 1;
+
+        let jumpThreshold = 0.3;
+        let squatThreshold = 0.7;
 
         let headPositions = [];
         let leftWristPositions = [];
         let rightWristPositions = [];
+
+        const debounceFrames = 5; // Number of frames to maintain the input before it's considered valid
+        const minDistance = 0.03; // Arm movements less than this are ignored
+        let debounceCounters = {
+            'l': 0,
+            'r': 0,
+            'u': 0,
+            'd': 0,
+            'n': 0,
+        };
+
+        function resetDebounceCounters() {
+            debounceCounters['l'] = 0;
+            debounceCounters['r'] = 0;
+            debounceCounters['u'] = 0;
+            debounceCounters['d'] = 0;
+            debounceCounters['n'] = 0;
+
+        }
+
+        function debounceInput(input) {
+            if (input) {
+                debounceCounters[input]++;
+                if (debounceCounters[input] >= debounceFrames) {
+                    console.log("DEBOUNCE VALUE", input, debounceCounters[input])
+                    latestInput = input;
+                    resetDebounceCounters();
+                }
+            } else {
+                resetDebounceCounters();
+                latestInput = null;
+            }
+        }
+
 
         const videoElement = document.createElement('video');
         videoElement.style.display = 'none';
         document.body.appendChild(videoElement);
 
         function onResults(results) {
-            drawCircle([50,50], [0,0,0])
 
+        
             const currentTimestamp = performance.now();
             fps = 1000 / (currentTimestamp - lastTimestamp);
             fpsHistory.push(fps);
@@ -109,14 +151,12 @@
             lastTimestamp = currentTimestamp;
 
             // Clear canvas
-            //videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-            //videoCtx.save();
+            videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
+            videoCtx.save();
             videoCtx.scale(-1, 1);
             videoCtx.translate(-videoCanvas.width, 0);
-            //videoCtx.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
-            drawCircle({x:0.5, y:0.5}, "red")
-            drawCircle({x:50, y:50}, "red")
-            //videoCtx.restore();
+            videoCtx.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
+            videoCtx.restore();
 
             // Check if poseLandmarks exists and has the required landmarks
             if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
@@ -142,7 +182,7 @@
             }
 
             // Process landmarks
-            console.log('Processing landmarks...');
+            //console.log('Processing landmarks...');
             processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head'); // Nose (head)
             processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', 'Left Wrist'); // Left wrist
             processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', 'Right Wrist'); // Right wrist
@@ -153,7 +193,6 @@
         }
 
         function processLandmark(landmark, positionArray, color, name) {
-            return;
             if (landmark && landmark.visibility > 0.75) {
                 const currentTime = performance.now();
                 positionArray.push({ x: landmark.x, y: landmark.y, time: currentTime });
@@ -168,7 +207,7 @@
                 avgPosition.x /= positionArray.length;
                 avgPosition.y /= positionArray.length;
 
-                console.log(`Drawing ${name} at (${avgPosition.x}, ${avgPosition.y}) with color ${color}`);
+                //console.log(`Drawing ${name} at (${avgPosition.x}, ${avgPosition.y}) with color ${color}`);
 
                 // Draw the smoothed position
                 drawCircle(avgPosition, color);
@@ -184,32 +223,66 @@
 
                     const speed = Math.sqrt(dx * dx + dy * dy) * videoCanvas.width / dt;
 
-                    console.log(`${name} speed: ${speed.toFixed(2)} px/s`);
+                    const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    if (name === 'Left Wrist' && speed > speedThreshold) {
-                        latestInput = 'l';
+                    //console.log(`${name} speed: ${speed.toFixed(2)} px/s`);
+
+                    
+                    // if (name === 'Left Wrist' && speed > speedThreshold) {
+                    //     latestInput = 'l';
+                    //     console.log('Punch Left');
+                    // } else if (name === 'Right Wrist' && speed > speedThreshold) {
+                    //     latestInput = 'r';
+                    //     console.log('Punch Right');
+                    // } else if (name === 'Head') {
+                    //     if (avgPosition.y < squatThreshold) {
+                    //         latestInput = 'd';
+                    //         console.log('Squat');
+                    //     } else if (avgPosition.y > jumpThreshold) {
+                    //         latestInput = 'u';
+                    //         console.log('Jump');
+                    //     }
+                    // }
+
+
+                    // Send input to debouncer
+                    // Debouncer puts it in latestInput which then goes to the game
+                    let input = null;
+
+                    if (name === 'Left Wrist' && speed > speedThreshold && distance > minDistance) {
+                        input = 'l';
                         console.log('Punch Left');
-                    } else if (name === 'Right Wrist' && speed > speedThreshold) {
-                        latestInput = 'r';
+                        alertDisplay.textContent = "LEFT";
+
+                    } else if (name === 'Right Wrist' && speed > speedThreshold && distance > minDistance) {
+                        input = 'r';
                         console.log('Punch Right');
+                        alertDisplay.textContent = "RIGHT";
+
                     } else if (name === 'Head') {
-                        if (avgPosition.y < squatThreshold) {
-                            latestInput = 'd';
+                        // These are reversed
+                        if (avgPosition.y > squatThreshold && speed > slowSpeedThreshold && distance > minDistance) {
+                            input = 'd';
                             console.log('Squat');
-                        } else if (avgPosition.y > jumpThreshold) {
-                            latestInput = 'u';
+                            alertDisplay.textContent = "DOWN";
+                        } else if (avgPosition.y < jumpThreshold && speed > slowSpeedThreshold && distance > minDistance) {
+                            input = 'u';
                             console.log('Jump');
+                            alertDisplay.textContent = "UP";
+                        } else {
+                            alertDisplay.textContent = "NONE";
+                            input = 'n';
                         }
                     }
 
+                    debounceInput(input);
                     if (speed > 500) {
-                        alertDisplay.textContent = "FAST MOVE";
+                        //alertDisplay.textContent = "FAST MOVE";
                     } else {
-                        alertDisplay.textContent = "";
+                        //alertDisplay.textContent = "";
                     }
                 }
             }
-            drawCircle({x:0.5, y:0.5}, "red")
         }
 
         // function drawCircle(position, color) {
@@ -226,10 +299,11 @@
         //     //videoCtx.restore(); // Restore the saved state
         // }
 
+        // BUG this is getting called with NaN/NaN sometimes!!
         function drawCircle(position, color) {
             const x = (videoCanvas.width - (position.x * videoCanvas.width))
             const y = position.y * videoCanvas.height;
-            console.log("DRAW CIRCLE AT", x, y)
+            //console.log("DRAW CIRCLE AT", x, y)
             videoCtx.save()
             videoCtx.beginPath();
             videoCtx.arc(x, y, 10, 0, 2 * Math.PI);
@@ -261,7 +335,9 @@
             facingMode: 'user'
         });
         camera.start();
-        videoElement.style.display = 'block';
+        videoElement.style.display = 'none';
+        // temp
+        document.getElementById('videoCanvas').style.display = 'block';
 
 
         document.getElementById('smoothing').addEventListener('input', (event) => {
@@ -269,6 +345,10 @@
         });
 
         document.getElementById('speedThreshold').addEventListener('input', (event) => {
+            speedThreshold = parseInt(event.target.value, 10);
+        });
+
+        document.getElementById('slowSpeedThreshold').addEventListener('input', (event) => {
             speedThreshold = parseInt(event.target.value, 10);
         });
 
@@ -280,8 +360,17 @@
             squatThreshold = parseInt(event.target.value, 10) / 100;
         });
 
+
+        document.getElementById('minDistance').addEventListener('input', (event) => {
+            squatThreshold = parseInt(event.target.value, 10) / 100.0;
+        });
+
+        document.getElementById('debounceFrames').addEventListener('input', (event) => {
+            squatThreshold = parseInt(event.target.value, 10);
+        });
+
         document.getElementById('startGame').addEventListener('click', () => {
-            document.getElementById('videoCanvas').style.display = 'none';
+            //document.getElementById('videoCanvas').style.display = 'none';
             document.getElementById('gameCanvas').style.display = 'block';
             document.getElementById('startGame').style.display = 'none';
             isGameRunning = true;
