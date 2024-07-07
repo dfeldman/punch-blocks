@@ -127,7 +127,7 @@ canvas {
         <label for="smoothing">Smoothing Level:</label>
         <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="1">
         <label for="speedThreshold">Punch Speed Threshold:</label>
-        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="100" value="10">
+        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="100" value="5">
         <label for="slowSpeedThreshold">Squat/Jump Speed Threshold:</label>
         <input type="range" id="slowSpeedThreshold" name="slowSpeedThreshold" min="1" max="100" value="5">
         <label for="jumpThreshold">Jump Height Threshold (%):</label>
@@ -214,7 +214,7 @@ canvas {
         const FPS_AVERAGE_COUNT = 10;
 
         let smoothingLevel = 1;
-        let speedThreshold = 10;
+        let speedThreshold = 5;
         let slowSpeedThreshold = 5;
 
         let jumpThreshold = 0.7;
@@ -244,8 +244,8 @@ canvas {
             "Stand back from the camera",
             "Punch left to move the block left",
             "Punch right to move the block right",
-            "Jump to rotate the block",
-            "Squat to drop the block",
+            "Squat to rotate the block",
+            "Jump to quick drop the block",
             "Get ready to play!"];
 
         const inputToText = {
@@ -297,7 +297,7 @@ canvas {
                 debounceCounters[input]++;
                 if (input === 'h') {
                     // Squatting and jumping gets 2x the debounce because it's a slower movement
-                    mult = 4;
+                    mult = 2;
                 } else if (input == 'u') {
                     mult = 2; // not sure
                 }
@@ -418,7 +418,9 @@ canvas {
             // But, if the hands are not in view, the game will be unplayable.
             // Process landmarks
             //console.log('Processing landmarks...');
-            processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head'); // Nose (head)
+            if (processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head')) {
+                return; // If the user is jumping, stop processing the rest of the landmarks
+            } // Nose (head)
             processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', 'Left Wrist'); // Left wrist
             processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', 'Right Wrist'); // Right wrist
             
@@ -487,7 +489,6 @@ canvas {
 
                     if (name === 'Left Wrist' && speed > speedThreshold && distance > minDistance) {
                         input = 'l';
-                        console.log('Punch Left');
 
                     } else if (name === 'Right Wrist' && speed > speedThreshold && distance > minDistance) {
                         input = 'r';
@@ -495,11 +496,18 @@ canvas {
                     } else if (name === 'Head') {
                         // These are reversed
                         if (avgPosition.y > squatThreshold && speed > slowSpeedThreshold) {
-                            input = 'h';
-                            // TODO jumping is really hard! You have to almost hover to get this to work
-                            // Removed mimimum distance for jumping
-                        } else if (avgPosition.y < jumpThreshold && speed > slowSpeedThreshold && distance > minDistance) {
                             input = 'u';
+                        // TODO jumping is really hard! You have to almost hover to get this to work
+                        // Removed mimimum distance for jumping
+                        // Hardcoded a 1.5x boost
+                        // Stopped processing arm movements if the user is jumping
+                        } else if (avgPosition.y < jumpThreshold && speed*1.5 > slowSpeedThreshold && distance > minDistance) {
+                            input = 'h';
+
+                            // Early return in the case of jumping only
+                            // This is messy
+                            debounceInput(input);
+                            return true; 
                         } else {
                             input = 'n';
                         }
@@ -507,9 +515,9 @@ canvas {
 
                     videoErrorStatus = 0;
                     debounceInput(input);
-
                 }
             }
+            return false;
         }
 
         // function drawCircle(position, color) {
