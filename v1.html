@@ -5,945 +5,694 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Punch Blocks</title>
     <style>
-body {
-    margin: 0;
-    overflow: hidden;
-    background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    font-family: Arial, sans-serif;
-    color: #b9a6ff;
-}
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: #b9a6ff;
+        }
 
-#score {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    font-size: 24px;
-    font-weight: bold;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-}
+        #score, #fps, #speedDisplay {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
 
-#controls {
-    position: absolute;
-    top: 100px;
-    left: 20px;
-    display: flex;
-    flex-direction: column;
-}
+        #score { top: 20px; left: 20px; }
+        #fps { top: 20px; right: 20px; }
+        #speedDisplay { bottom: 20px; left: 20px; }
 
-#fps  {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    text-align: right;
-    font-size: 18px;
-}
+        #controls {
+            position: absolute;
+            top: 100px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+        }
 
+        #alert, #tutorial {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            text-align: center;
+        }
 
-#alert {
-    display: block;
-    position: absolute;
-    top: 100px;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 32px;
-    color: #f99797;
-}
+        #alert { top: 100px; color: #f99797; }
+        #tutorial { top: 50px; color: white; }
 
-#tutorial {
-    display: block;
-    position: absolute;
-    top: 50px;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 32px;
-    color: white;
-}
+        button {
+            font-size: 14px;
+            padding: 10px 20px;
+            margin: 5px;
+            background: #b9a6ff;
+            color: #1a1a2e;
+            border: none;
+            cursor: pointer;
+        }
 
+        #startGame {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+        }
 
-#restartTutorial, #nextTutorial {
-    position: relative;
-    font-size: 14px;
-    padding: 10px 20px;
-    margin: 5px;
-    background: #b9a6ff;
-    color: #1a1a2e;
-    border: none;
-    cursor: pointer;
-}
+        canvas {
+            display: none;
+            margin: auto;
+        }
 
-#startGame {
-    position: absolute;
-    bottom: 50px;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 32px;
-    padding: 10px 20px;
-    background: #b9a6ff;
-    color: #1a1a2e;
-    border: none;
-    cursor: pointer;
-}
+        #videoCanvas {
+            position: absolute;
+            display: block;
+            max-width: 640px;
+            max-height: 480px;
+            width: 100%;
+            height: auto;
+        }
 
-canvas {
-    display: none;
-    margin: auto;
-}
+        #gameCanvas {
+            position: absolute;
+            top: 150px;
+            height: 80vh;
+            width: 40vh;
+            border: 5px solid #b9a6ff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            margin: 10px;
+        }
 
-#videoCanvas {
-    position: absolute;
-    display: block;
-    max-width: 640px;
-    max-height: 480px;
-    width: 100%;
-    height: auto;
-}
-#gameCanvas {
-    position: absolute;
-    top: 150px;
-    height: 80vh; /* Set the height to 100% of the viewport height */
-    width: 40vh;   /* Set the width to 40% of the viewport height to maintain the aspect ratio */
-    border: 5px solid #b9a6ff; /* Add a cool border */
-    border-radius: 10px; /* Optional: Add rounded corners to the border */
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Optional: Add a shadow for a cool effect */
-    margin: 10px;
-}
-
-#info {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    text-align: right;
-    font-size: 18px;
-}
-
+        #actionHistory {
+            position: absolute;
+            bottom: 60px;
+            left: 20px;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
     <div id="controls">
         <label for="smoothing">Smoothing Level:</label>
-        <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="1">
-        <label for="speedThreshold">Punch Speed Threshold:</label>
-        <input type="range" id="speedThreshold" name="speedThreshold" min="1" max="100" value="5">
-        <label for="slowSpeedThreshold">Squat/Jump Speed Threshold:</label>
-        <input type="range" id="slowSpeedThreshold" name="slowSpeedThreshold" min="1" max="100" value="5">
+        <input type="range" id="smoothing" name="smoothing" min="1" max="10" value="5">
+        <label for="minSpeedThreshold">Minimum Speed Threshold:</label>
+        <input type="range" id="minSpeedThreshold" name="minSpeedThreshold" min="100" max="500" value="250">
+        <label for="calibrationAttempts">Calibration Attempts:</label>
+        <input type="range" id="calibrationAttempts" name="calibrationAttempts" min="1" max="5" value="3">
+        <label for="calibrationCountdown">Calibration Countdown (s):</label>
+        <input type="range" id="calibrationCountdown" name="calibrationCountdown" min="1" max="10" value="3">
+        <label for="calibrationThresholdMultiplier">Calibration Threshold Multiplier (%):</label>
+        <input type="range" id="calibrationThresholdMultiplier" name="calibrationThresholdMultiplier" min="50" max="100" value="90">
         <label for="jumpThreshold">Jump Height Threshold (%):</label>
         <input type="range" id="jumpThreshold" name="jumpThreshold" min="1" max="100" value="30">
         <label for="squatThreshold">Squat Height Threshold (%):</label>
         <input type="range" id="squatThreshold" name="squatThreshold" min="1" max="100" value="70">
-        <label for="squatThreshold">Min Distance:</label>
-        <input type="range" id="minDistance" name="minDistance" min="1" max="100" value="3">
-        <label for="squatThreshold">Debounce Frames</label>
-        <input type="range" id="debounceFrames" name="debounceFrames" min="1" max="10" value="2">
-        <button id="nextTutorial">Next Tutorial Step</button>
-        <button id="restartTutorial">Restart Tutorial</button>
-
+        <button id="startCalibration">Start Calibration</button>
+        <button id="restartCalibration">Restart Calibration</button>
+        <button id="repeatStep">Repeat Step</button>
     </div>
-    <div id="info">
-        <div id="fps">FPS: 0</div>
-
-    </div>
+    <div id="fps">FPS: 0</div>
     <div id="alert"></div>
-    <div id="tutorial">Enable your camera</div>
+    <div id="tutorial"></div>
+    <div id="speedDisplay"></div>
+    <div id="actionHistory"></div>
     <canvas id="videoCanvas" width="640" height="480"></canvas>
     <canvas id="gameCanvas"></canvas>
     <div id="score">Score: 0</div>
-
-    <button id="startGame">Start Game</button>
+    <button id="startGame" style="display:none;">Start Game</button>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/pose.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   
     <script>
+    // Constants and Configuration
+    let CONFIG = {
+        SMOOTHING_LEVEL: 1,
+        MIN_SPEED_THRESHOLD: 20,
+        CALIBRATION_ATTEMPTS: 3,
+        CALIBRATION_COUNTDOWN: 3,
+        CALIBRATION_THRESHOLD_MULTIPLIER: 0.9,
+        JUMP_THRESHOLD: 0.3,
+        SQUAT_THRESHOLD: 0.7,
+        TIME_WINDOW: 100,
+        DEBOUNCE_FRAMES: 4,
+        PEAK_SPEED_WINDOW: 1000
+    };
 
+    // Update CONFIG based on slider inputs
+    document.getElementById('smoothing').addEventListener('input', (e) => {
+        CONFIG.SMOOTHING_LEVEL = parseInt(e.target.value);
+        updateEMAAlpha();
+    });
+    document.getElementById('minSpeedThreshold').addEventListener('input', (e) => CONFIG.MIN_SPEED_THRESHOLD = parseInt(e.target.value));
+    document.getElementById('calibrationAttempts').addEventListener('input', (e) => CONFIG.CALIBRATION_ATTEMPTS = parseInt(e.target.value));
+    document.getElementById('calibrationCountdown').addEventListener('input', (e) => CONFIG.CALIBRATION_COUNTDOWN = parseInt(e.target.value));
+    document.getElementById('calibrationThresholdMultiplier').addEventListener('input', (e) => CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER = parseInt(e.target.value) / 100);
+    document.getElementById('jumpThreshold').addEventListener('input', (e) => CONFIG.JUMP_THRESHOLD = parseInt(e.target.value) / 100);
+    document.getElementById('squatThreshold').addEventListener('input', (e) => CONFIG.SQUAT_THRESHOLD = parseInt(e.target.value) / 100);
 
-        // TODO 
-        // Figure out the NaN issue
-        // Add sounds
-        // Jump needs to be a hard drop
-        // Display the motion with an icon
-        // Set scoring: give lots of points for motion
-        // Add a timer
-        // Add a game over screen
-        // Add a start screen
-        // Add a pause screen
+    // Global Variables
+    let EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
+    const videoElement = document.createElement('video');
+    const videoCanvas = document.getElementById('videoCanvas');
+    const videoCtx = videoCanvas.getContext('2d');
+    const gameCanvas = document.getElementById('gameCanvas');
+    const gl = gameCanvas.getContext('webgl');
+    const scoreElement = document.getElementById('score');
+    const fpsDisplay = document.getElementById('fps');
+    const alertDisplay = document.getElementById('alert');
+    const tutorialDisplay = document.getElementById('tutorial');
+    const speedDisplay = document.getElementById('speedDisplay');
+    const actionHistoryDisplay = document.getElementById('actionHistory');
 
+    let isGameRunning = false;
+    let lastTimestamp = performance.now();
+    let fps = 0;
+    let fpsHistory = [];
+    const FPS_AVERAGE_COUNT = 10;
 
+    let latestInput = null;
+    let actionHistory = [];
+    const MAX_HISTORY = 5;
 
+    // Landmark Configuration
+    const landmarkConfig = {
+        leftWrist: { index: 15, color: 'red' },
+        rightWrist: { index: 16, color: 'green' },
+        nose: { index: 0, color: 'blue' },
+        // not sure these are correct
+        jump: { index: 0, color: 'green' },
+        squat: { index: 0, color: 'purple' }
+    };
 
+    // Calibration and Practice State
+    let gameState = {
+        phase: 'idle', // 'idle', 'calibration', 'practice', 'game'
+        step: 'leftWrist',
+        attempts: [],
+        countdown: CONFIG.CALIBRATION_COUNTDOWN,
+        lastCountdownTime: 0,
+        startTime: 0,
+        maxTime: 30000 // 30 seconds max per step
+    };
 
-        // This is really two separate real-time processing loops that are interleaved.
-        // One is for video, and the other is for the game.
-        // They only communicate through a few shared global variables. 
+    let calibrationData = {
+        leftWrist: { speeds: [], threshold: 0 },
+        rightWrist: { speeds: [], threshold: 0 },
+        jump: { speeds: [], threshold: 0, maxY: 0, minY: 1 },
+        squat: { speeds: [], threshold: 0, maxY: 0, minY: 1 }
+    };
 
-        // ----------------------------------------
-        // ######      VIDEO COMPONENTS      ######
-        // ----------------------------------------
-        // The video processing code uses MediaPipe from Google to do pose recognition. 
-        // Its input is a few config options. 
-        // Its output is a status, positions, and an input to the game. 
-        // Input may be "l", "r", "d", "h", "u". 
-        // Status may be "OK" (everything is working), "BACKUP" (can't see necessary landmarks)
-        // Positions are x/y positions for the left hand, head, and right hand for user feedback.
-        // and more to be added later. 
+    // Debounce System
+    let debounceCounters = { l: 0, r: 0, u: 0, h: 0, n: 0 };
 
-        // Initialize MediaPipe Pose
-        // A hidden video element is used for MediaPipe only.
-        // This is different from videoCanvas which is used for user feedback.
-        const videoElement = document.createElement('video');
-        videoElement.style.display = 'none';
-        document.body.appendChild(videoElement);
+    function resetDebounceCounters() {
+        Object.keys(debounceCounters).forEach(key => debounceCounters[key] = 0);
+    }
 
-
-        const videoCanvas = document.getElementById('videoCanvas');
-        const videoCtx = videoCanvas.getContext('2d');
-        const gameCanvas = document.getElementById('gameCanvas');
-        const gl = gameCanvas.getContext('webgl');
-        const scoreElement = document.getElementById('score');
-        const fpsDisplay = document.getElementById('fps');
-        const alertDisplay = document.getElementById('alert');
-        const tutorialDisplay = document.getElementById('tutorial');
-
-        let isGameRunning = false;
-        let lastTimestamp = performance.now();
-        let fps = 0;
-        let fpsHistory = [];
-        const FPS_AVERAGE_COUNT = 10;
-
-        let smoothingLevel = 1;
-        let speedThreshold = 75;
-        let slowSpeedThreshold = 5;
-
-        let jumpThreshold = 0.7;
-        let squatThreshold = 0.7;
-
-        let headPositions = [];
-        let leftWristPositions = [];
-        let rightWristPositions = [];
-
-        let debounceFrames = 4; // Number of frames to maintain the input before it's considered valid
-        let minDistance = 0.03; // Arm movements less than this are ignored
-
-        let tutorialStep = 0;
-
-        // -1 = not started, 0 = running, 1 = no landmarks, 2 = too close
-        let videoErrorStatus = -1;
-
-        // This is the key global variable that controls the entire game.
-        // After video processing and debouncing, this gets set to the latest input action. 
-        // After processing the input, it set back to null. 
-        // 'n' means no action, which can be used for debugging. null means whatever action has been proceesed. 
-        let latestInput = null;
-
-        // Tutorial text strings
-        const tutorialText = [
-            // Perhaps add a step 0 to turn on the camera
-            "Stand back from the camera",
-            "Punch left to move the block left",
-            "Punch right to move the block right",
-            "Squat to rotate the block",
-            "Jump to quick drop the block",
-            "Get ready to play!"];
-
-        const inputToText = {
-            'l': 'Punch left',
-            'r': 'Punch right',
-            'u': 'Jump',
-            'h': 'Squat',
-            'n': 'No action'
-        };
-
-        // Effects audio files
-        var audioLeft = new Audio('assets/effects/left.mp3');
-        var audioRight = new Audio('assets/effects/right.mp3');
-        var audioFall = new Audio('assets/effects/fall.mp3');
-        var audioRotate = new Audio('assets/effects/rotate.mp3');
-        //var audioLand = new Audio('assets/effects/land.mp3'); // not used
-
-
-        function playSoundEffect(audio) {
-            audio.currentTime = 0;
-            audio.play();
-        }
-
-
-
-
-
-        // Debounce system
-        let debounceCounters = {
-            'l': 0,
-            'r': 0,
-            'u': 0,
-            'h': 0,
-            'n': 0,
-        };
-
-        function resetDebounceCounters() {
-            debounceCounters['l'] = 0;
-            debounceCounters['r'] = 0;
-            debounceCounters['u'] = 0;
-            debounceCounters['h'] = 0;
-            debounceCounters['n'] = 0;
-
-        }
-
-        function debounceInput(input) {
-            let mult = 1;
-            if (input) {
-                debounceCounters[input]++;
-                if (input === 'h') {
-                    // Squatting and jumping gets 2x the debounce because it's a slower movement
-                    mult = 2;
-                } else if (input == 'u') {
-                    mult = 2; // not sure
-                }
-                if (debounceCounters[input] >= (debounceFrames*mult)) {
-                    //console.log("DEBOUNCE VALUE", input, debounceCounters[input])
-                    sendInput(input);
-                    resetDebounceCounters();
-                }
-            } else {
-                //sendInput('n');
+    function debounceInput(input) {
+        let mult = (input === 'h' || input === 'u') ? 2 : 1;
+        if (input) {
+            debounceCounters[input]++;
+            if (debounceCounters[input] >= (CONFIG.DEBOUNCE_FRAMES * mult)) {
+                sendInput(input);
                 resetDebounceCounters();
             }
+        } else {
+            resetDebounceCounters();
+        }
+    }
+
+    function sendInput(input) {
+        latestInput = input;
+        const actionName = {
+            'l': 'leftWrist',
+            'r': 'rightWrist',
+            'h': 'jump',
+            'u': 'squat'
+        }[input];
+        updateSpeedDisplay(actionName, calibrationData[actionName].threshold);
+    }
+
+    // Calibration Functions
+    function startCalibration() {
+        isGameRunning = false;
+        document.getElementById('videoCanvas').style.display = 'block';
+        document.getElementById('gameCanvas').style.display = 'none';
+        lastPositions.leftWrist = null;
+    lastPositions.rightWrist = null;
+    lastPositions.nose = null;
+        gameState = {
+            phase: 'calibration',
+            step: 'leftWrist',
+            attempts: [],
+            countdown: CONFIG.CALIBRATION_COUNTDOWN,
+            lastCountdownTime: performance.now(),
+            startTime: performance.now(),
+            maxTime: 30000,
+        };
+        updateCalibrationDisplay();
+    }
+
+
+    function updateCalibration(step, landmark, speed) {
+        // I'm not sure calibration should ever time out. I don't see the point.
+    // if (performance.now() - gameState.startTime > gameState.maxTime) {
+    //     showWarning("Calibration step timed out. Restarting step.");
+    //     console.log("timeout    ")
+    //     restartCalibrationStep();
+    //     return;
+    // }
+    //console.log("updateCalibration", step, speed, CONFIG.MIN_SPEED_THRESHOLD, performance.now() - gameState.startTime)
+    // This is completely messed up. We need a different state variable to track if we are in the first 3 seconds and display a proper message every time. 
+    if (performance.now() - gameState.startTime < 3000) {
+        console.log("too soon", performance.now() - gameState.startTime)
+        updateCalibrationDisplay();
+        return; // Skip the first 3 seconds so we don't detect over and over again
+    }
+
+
+
+    // Check if the movement is significant enough
+    const lastPosition = lastPositions[step === 'jump' || step === 'squat' ? 'nose' : step];
+    if (lastPosition) {
+        const dx = landmark.x - lastPosition.x;
+        const dy = landmark.y - lastPosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // You may need to adjust this threshold
+        const movementThreshold = 0.2; // 20% of the frame size
+
+        // Ideally we would skip this step if the momentum is too small, however lastPosition was already updated as part of calculateSpeed
+        // so it is not possible to skip this step 
+        // Could move that update to a different function
+        if (distance < movementThreshold) {
+             //console.log("movement too small", distance, step, lastPosition, landmark)
+             return; // Movement is too small, ignore it
+        }
+    }
+    if ((speed>30 || Math.round(performance.now()%10)==0))  console.log(speed, CONFIG.MIN_SPEED_THRESHOLD)
+    if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
+        gameState.attempts.push(speed);
+        gameState.startTime = performance.now(); // Wait another 3 seconds before accepting new data
+        if (step === 'jump' || step === 'squat') {
+            calibrationData[step].maxY = Math.max(calibrationData[step].maxY, landmark.y);
+            calibrationData[step].minY = Math.min(calibrationData[step].minY, landmark.y);
+        }
+        
+        if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+            finishCalibrationStep();
+        } else if (Math.round(performance.now() % 100) === 0){
+            // Only do this every 100 loops. This is a very expensive operation.
+            // This is buggy
+            updateCalibrationDisplay();
+        }
+    }
+}
+
+    function finishCalibrationStep() {
+        const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / CONFIG.CALIBRATION_ATTEMPTS;
+        calibrationData[gameState.step].speeds = gameState.attempts;
+        calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
+
+        switch (gameState.step) {
+            case 'leftWrist': gameState.step = 'rightWrist'; break;
+            case 'rightWrist': gameState.step = 'jump'; break;
+            case 'jump': gameState.step = 'squat'; break;
+            case 'squat': finishCalibration(); return;
+        }
+        
+        gameState.attempts = [];
+        gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+        gameState.lastCountdownTime = performance.now();
+        gameState.startTime = performance.now();
+        updateCalibrationDisplay();
+    }
+
+    function finishCalibration() {
+        gameState.phase = 'practice';
+        startPracticeStage();
+    }
+
+    function restartCalibrationStep() {
+        gameState.attempts = [];
+        gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+        gameState.startTime = performance.now();
+        updateCalibrationDisplay();
+    }
+
+    function updateCalibrationDisplay() {
+        const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
+        if (performance.now() - gameState.startTime < 3000) {
+            tutorialDisplay.textContent = `Calibrating ${stepName} : Wait for the countdown`;
+            alertDisplay.textContent = `Next in: ${Math.ceil((3000 - (performance.now() - gameState.startTime)) / 1000)}s`;
+            return;
+        }
+        tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${gameState.attempts.length + 1}/${CONFIG.CALIBRATION_ATTEMPTS}`;
+        // I don't see the point of this
+        // const currentTime = performance.now();
+        // if (currentTime - gameState.lastCountdownTime > 1000) {
+        //     gameState.countdown--;
+        //     gameState.lastCountdownTime = currentTime;
+        //     if (gameState.countdown <= 0) {
+        //         finishCalibrationStep();
+        //     }
+        // }
+        
+        const attemptDisplay = gameState.attempts.map(speed => 
+            speed //speed >= CONFIG.MIN_SPEED_THRESHOLD ? '✅' : '❌'
+        ).join(' ');
+        alertDisplay.textContent = `Next in: ${gameState.countdown}s | Attempts: ${attemptDisplay}`;
+
+    }
+
+    // Practice Stage Functions
+    function startPracticeStage() {
+        isGameRunning = false;
+        document.getElementById('videoCanvas').style.display = 'block';
+        document.getElementById('gameCanvas').style.display = 'none';
+
+        gameState = {
+            phase: 'practice',
+            step: 'leftWrist',
+            completed: [],
+            startTime: performance.now(),
+            maxTime: 60000 // 60 seconds for entire practice
+        };
+        updatePracticeDisplay();
+    }
+
+    function updatePractice(step, landmark, speed) {
+    if (performance.now() - gameState.startTime > gameState.maxTime) {
+        finishPractice();
+        return;
+    }
+
+    const threshold = calibrationData[step].threshold;
+    const percentOfThreshold = (speed / threshold) * 100;
+    
+    if (speed >= threshold) {
+        showSuccess(`Great job! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold)`);
+        gameState.completed.push(step);
+        moveToNextPracticeStep();
+    } else if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
+        showWarning(`Close! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold). Try again!`);
+    }
+    updatePracticeDisplay();
+}
+
+    function moveToNextPracticeStep() {
+        switch (gameState.step) {
+            case 'leftWrist': gameState.step = 'rightWrist'; break;
+            case 'rightWrist': gameState.step = 'jump'; break;
+            case 'jump': gameState.step = 'squat'; break;
+            case 'squat': finishPractice(); return;
+        }
+        updatePracticeDisplay();
+    }
+
+    function finishPractice() {
+        gameState.phase = 'ready';
+        document.getElementById('startGame').style.display = 'block';
+        tutorialDisplay.textContent = "Great job! You're ready to play!";
+        alertDisplay.textContent = "Click 'Start Game' when you're ready.";
+    }
+
+    function updatePracticeDisplay() {
+        const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
+        tutorialDisplay.textContent = `Practice ${stepName}`;
+        alertDisplay.textContent = `Completed: ${gameState.completed.join(', ')}`;
+    }
+
+    function showWarning(message) {
+        alertDisplay.textContent = message;
+        alertDisplay.style.color = '#ffaa00';
+        setTimeout(() => {
+            alertDisplay.style.color = '#f99797';
+        }, 2000);
+    }
+
+    function showSuccess(message) {
+        alertDisplay.textContent = message;
+        alertDisplay.style.color = '#00ff00';
+        setTimeout(() => {
+            alertDisplay.style.color = '#f99797';
+        }, 2000);
+    }
+
+    // Speed Display and Action History
+    function updateSpeedDisplay(action, speed) {
+        const actionColor = {
+            leftWrist: 'red',
+            rightWrist: 'blue',
+            jump: 'green',
+            squat: 'purple'
+        }[action] || 'black';
+
+        speedDisplay.innerHTML = `<span style="color:${actionColor}">${action.toUpperCase()}</span> ${speed.toFixed(0)}`;
+        
+        actionHistory.unshift({ action, speed, time: new Date() });
+        if (actionHistory.length > MAX_HISTORY) {
+            actionHistory.pop();
         }
 
-        function sendInput(input) {
-            latestInput = input;
-            //console.log("LATEST INPUT", inputToText[latestInput]);
-            if (input != 'n') alertDisplay.textContent = inputToText[latestInput];
-        }
+        updateActionHistory();
+    }
 
-        // tutorial display
-        function updateTutorial() {
-            if (tutorialStep >= 6) return;
-            tutorialDisplay.textContent = tutorialText[tutorialStep];
-            alertDisplay.textContent = ""; // Alert is turned off in tutorial mode
+    function updateActionHistory() {
+        actionHistoryDisplay.innerHTML = actionHistory.map(item => 
+            `<div>${item.time.toLocaleTimeString()}: ${item.action} - ${item.speed.toFixed(0)}</div>`
+        ).join('');
+    }
 
-            switch (tutorialStep) {
-                case 0:
-                    if (videoErrorStatus === 0) {
-                        tutorialStep++;
-                    }
-                    break;
-                case 1:
-                    startCalibration('Left Wrist');
-                    if (latestInput === 'l') {
-                        tutorialStep++;
-                        stopCalibration();
-                    }
-                    latestInput = null;
-                    break;
-                case 2:
-                    startCalibration('Right Wrist');
-                    if (latestInput === 'r') {
-                        tutorialStep++;
-                        stopCalibration();
-                    }
-                    latestInput = null;
-                    break;
-                case 3:
-                    if (latestInput === 'u') {
-                        tutorialStep++;
-                    }        
-                    latestInput = null;            
-                    break;
-                case 4:
-                    if (latestInput === 'h') {
-                        tutorialStep++;
-                    }                    
-                    latestInput = null;
-                    break;
-                case 5:
-                    // Display Start Game button and hide tutorial box
-                    break;
-            }
-        }
+    // Video Processing and Pose Detection
+    const pose = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/${file}`
+    });
 
-// Constants
-const TIME_WINDOW = 100; // ms
-const EMA_ALPHA = 0.2;
-const VISIBILITY_THRESHOLD = 0.75;
-const PEAK_SPEED_WINDOW = 1000; // 1 second window for peak speed
+    pose.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        smoothSegmentation: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
 
-// Landmark configuration
-const landmarkConfig = {
-    'Head': { 
-        index: 0, 
-        color: 'blue', 
-        speedThreshold: speedThreshold, 
-        positionThresholds: { lower: jumpThreshold, upper: squatThreshold },
-        ema: { position: null, speed: null },
-        action: (speed, y) => {
-            if (y < landmarkConfig['Head'].positionThresholds.lower && speed > landmarkConfig['Head'].speedThreshold) return 'h';
-            if (y > landmarkConfig['Head'].positionThresholds.upper && speed > slowSpeedThreshold) return 'u';
-            return null;
+    pose.onResults(onResults);
+
+    let camera = new Camera(videoElement, {
+        onFrame: async () => {
+            await pose.send({ image: videoElement });
         },
-        peakSpeed: 0,
-        lastPeakUpdate: 0
-    },
-    'Left Wrist': { 
-        index: 15, 
-        color: 'red', 
-        speedThreshold: speedThreshold, 
-        ema: { position: null, speed: null },
-        action: (speed) => speed > (landmarkConfig['Left Wrist'].speedThreshold * (speedThreshold/100)) ? 'l' : null,
-        peakSpeed: 0,
-        lastPeakUpdate: 0
-    },
-    'Right Wrist': { 
-        index: 16, 
-        color: 'green', 
-        speedThreshold: speedThreshold, 
-        ema: { position: null, speed: null },
-        action: (speed) => speed > (landmarkConfig['Right Wrist'].speedThreshold * (speedThreshold / 100.0)) ? 'r' : null,
-        peakSpeed: 0,
-        lastPeakUpdate: 0
-    }
-};
+        width: 640,
+        height: 480,
+        facingMode: 'user'
+    });
 
-// Calibration state
-let calibrationState = {
-    isActive: false,
-    landmark: null,
-    speedMax: 0
-};
+    camera.start();
 
-// Main processing function
-function onResults(results) {
-    try {
-        updateTutorial();
-        updateFPS();
-        drawVideoFrame(results);
+    function onResults(results) {
+    updateFPS();
+    drawVideoFrame(results);
 
+    if (!validateResults(results)) return;
 
-        if (!validateResults(results)) return;
+    //clearErrorState();
 
-        clearErrorState();
+    if (gameState.phase === 'calibration' || gameState.phase === 'practice') {
+        let relevantLandmark;
+        let relevantStep = gameState.step;
 
-        // Process landmarks
-        for (const [name, config] of Object.entries(landmarkConfig)) {
-            const landmark = results.poseLandmarks[config.index];
-            if (processLandmark(landmark, name) && !calibrationState.isActive) return; 
-            // Early return on jump detection if not in calibration mode
-            // Just so we don't accidentally process arm movements while jumping
+        // If the step is 'jump' or 'squat', use the nose landmark
+        if (gameState.step === 'jump' || gameState.step === 'squat') {
+            relevantStep = 'nose';
         }
-    } catch (error) {
-        console.error("Error in onResults:", error);
-        handleErrorState(3, "An unexpected error occurred");
+
+        if (landmarkConfig[relevantStep]) {
+            relevantLandmark = results.poseLandmarks[landmarkConfig[relevantStep].index];
+        } else {
+            console.error(`Unknown step: ${gameState.step}`);
+            return;
+        }
+        //console.log(relevantLandmark, relevantStep)
+        if (relevantLandmark) {
+            const speed = calculateSpeed(relevantLandmark, relevantStep);
+            if (gameState.phase === 'calibration') {
+                updateCalibration(gameState.step, relevantLandmark, speed);
+            } else {
+                updatePractice(gameState.step, relevantLandmark, speed);
+            }
+            
+            lastPositions[name] = {
+            x: relevantLandmark.x,
+            y: relevantLandmark.y,
+            time: performance.now()}
+            
+            }
+
+    } else if (gameState.phase === 'game') {
+        for (const [name, config] of Object.entries(landmarkConfig)) {
+            if (config.index !== undefined) {  // Only process landmarks with defined indices
+                const landmark = results.poseLandmarks[config.index];
+                //if (processLandmark(landmark, name)) return; // Early return on jump detection
+                // does not work right now
+                skip=processLandmark(landmark, name);
+                // double check
+                lastPositions[name] = {
+        x: landmark.x,
+        y: landmark.y,
+        time: performance.now()
+            }
+            if (skip) return; // Early return on jump detection
+            // Not sure this actually works. Is nose guaranteed to come before wrist? No idea
+        }
     }
+
+        // Update last position
+        // The last position is used for the speed calculation, and also the minumum distance calculation
+        // updateCalibration, updatePractice, and processLandmark should all check the minimumDistance so it should be factored out
+
+
+}
 }
 
-// Implement the drawVideoFrame function
-function drawVideoFrame(results) {
-    videoCtx.save();
-    videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-    videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
+    function validateResults(results) {
+        if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
+            handleErrorState(1, "Pose landmarks not detected");
+            return false;
+        }
 
-    // If you want to draw the landmarks, you can do so here
-    if (results.poseLandmarks) {
-        drawConnectors(videoCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 4 });
-        drawLandmarks(videoCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 2 });
-    }
-    displayPeakSpeeds(); // Add this line to display peak speeds
+        const requiredLandmarks = [0, 11, 12, 13, 14, 15, 16].map(i => results.poseLandmarks[i]);
+        if (!areLandmarksVisible(requiredLandmarks)) {
+            handleErrorState(2, "Please step back");
+            return false;
+        }
 
-    videoCtx.restore();
-}
-
-function validateResults(results) {
-    if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
-        handleErrorState(1, "Pose landmarks not detected");
-        return false;
-    }
-
-    const requiredLandmarks = [0, 11, 12, 13, 14, 15, 16].map(i => results.poseLandmarks[i]);
-    if (!areLandmarksVisible(requiredLandmarks)) {
-        handleErrorState(2, "BACK UP");
-        // If the landmarks are not visible, show an alert but continue
         return true;
     }
 
-    return true;
-}
+    function areLandmarksVisible(landmarks) {
+        return landmarks.every(landmark => landmark && landmark.visibility > 0.75);
+    }
 
-// Implement the drawLandmark function
-function drawLandmark(position, color) {
-    if (!position || !videoCtx) return;
+    function processLandmark(landmark, name) {
+        if (!landmark || landmark.visibility <= 0.75) return false;
 
-    videoCtx.beginPath();
-    videoCtx.arc(position.x * videoCanvas.width, position.y * videoCanvas.height, 5, 0, 2 * Math.PI);
-    videoCtx.fillStyle = color;
-    videoCtx.fill();
-}
+        const speed = calculateSpeed(landmark, name);
 
+        if (name === 'nose') {
+            const y = landmark.y;
+            if (y < calibrationData.jump.minY && speed > calibrationData.jump.threshold) {
+                debounceInput('h'); // Jump
+                return true;
+            } else if (y > calibrationData.squat.maxY && speed > calibrationData.squat.threshold) {
+                debounceInput('u'); // Squat
+            }
+        } else {
+            const threshold = calibrationData[name].threshold;
+            if (speed > threshold) {
+                debounceInput(name === 'leftWrist' ? 'l' : 'r');
+            }
+        }
 
-function processLandmark(landmark, name) {
-    if (!landmark || landmark.visibility <= VISIBILITY_THRESHOLD) return false;
-
-    const config = landmarkConfig[name];
-    const currentTime = performance.now();
-    const position = { x: landmark.x, y: landmark.y, time: currentTime };
-
-    updateEMA(config.ema, position);
-    const speed = calculateSpeed(config.ema.position, TIME_WINDOW, config);
-
-    drawLandmark(config.ema.position.value, config.color);
-    logLandmarkData(name, speed, config.speedThreshold);
-
-    if (calibrationState.isActive && calibrationState.landmark === name) {
-        handleCalibration(name, speed);
         return false;
     }
 
-    const input = config.action(speed, config.ema.position.value.y);
-    if (input) {
-        debounceInput(input);
-        return input === 'h'; // Return true if jump detected
+
+    // This is kinda messy. Globals used in calculating speed. Should put these somewhere better. 
+    let lastPositions = {
+        leftWrist: null,
+        rightWrist: null,
+        nose: null
+    };
+
+    function calculateSpeed(landmark, name) {
+    const currentTime = performance.now();
+    
+    if (!lastPositions[name]) {
+        lastPositions[name] = { x: landmark.x, y: landmark.y, time: currentTime };
+        return 0;
     }
 
-    return false;
-}
+    const dt = (currentTime - lastPositions[name].time) / 1000; // in seconds
+    if (dt === 0) return 0; // Avoid division by zero
 
-function updateEMA(ema, newValue) {
-    if (!ema.position) {
-        ema.position = { value: newValue, history: [newValue] };
-        ema.speed = { value: 0, history: [] };
-    } else {
-        ema.position.value = {
-            x: EMA_ALPHA * newValue.x + (1 - EMA_ALPHA) * ema.position.value.x,
-            y: EMA_ALPHA * newValue.y + (1 - EMA_ALPHA) * ema.position.value.y,
-            time: newValue.time
-        };
-        ema.position.history.push(ema.position.value);
-        ema.position.history = ema.position.history.filter(pos => newValue.time - pos.time <= TIME_WINDOW);
-    }
-}
-
-// function calculateSpeed(positionEMA, timeWindow) {
-//     if (positionEMA.history.length < 2) return 0;
-
-//     const recentPositions = positionEMA.history.filter(pos => positionEMA.value.time - pos.time <= timeWindow);
-//     const [oldestPos, latestPos] = [recentPositions[0], recentPositions[recentPositions.length - 1]];
-
-//     const dx = latestPos.x - oldestPos.x;
-//     const dy = latestPos.y - oldestPos.y;
-//     const dt = (latestPos.time - oldestPos.time) / 1000; // Convert to seconds
-
-//     return (Math.sqrt(dx * dx + dy * dy) / dt) * videoCanvas.width * 100;
-// }
-
-// Update the calculateSpeed function to track peak speed
-function calculateSpeed(positionEMA, timeWindow, landmark) {
-    if (positionEMA.history.length < 2) return 0;
-
-    const recentPositions = positionEMA.history.filter(pos => positionEMA.value.time - pos.time <= timeWindow);
-    const oldestPos = recentPositions[0];
-    const latestPos = recentPositions[recentPositions.length - 1];
-
-    const dx = latestPos.x - oldestPos.x;
-    const dy = latestPos.y - oldestPos.y;
-    const dt = (latestPos.time - oldestPos.time) / 1000; // Convert to seconds
-
-    // Calculate speed in units per second
+    const dx = landmark.x - lastPositions[name].x;
+    const dy = landmark.y - lastPositions[name].y;
     const speed = Math.sqrt(dx * dx + dy * dy) / dt;
 
-    // Scale the speed to a more manageable range
-    const scalingFactor = 100;
-    const scaledSpeed = speed * scalingFactor;
 
-    // Update peak speed
-    const currentTime = performance.now();
-    if (currentTime - landmark.lastPeakUpdate > PEAK_SPEED_WINDOW) {
-        landmark.peakSpeed = scaledSpeed;
-        landmark.lastPeakUpdate = currentTime;
-    } else {
-        landmark.peakSpeed = Math.max(landmark.peakSpeed, scaledSpeed);
+
+    return speed * videoCanvas.width; // Scale speed to canvas width
+}
+
+    function updateEMAAlpha() {
+        EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
     }
 
-    return scaledSpeed;
-}
+    function drawVideoFrame(results) {
+        videoCtx.save();
+        videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
+        videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
 
+        if (results.poseLandmarks) {
+            drawConnectors(videoCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 4 });
+            drawLandmarks(videoCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 2 });
+        }
 
-// Calibration functions
-function handleCalibration(name, speed) {
-    if ( ! calibrationState.isActive) return;
-    calibrationState.speedMax = Math.max(calibrationState.speedMax, speed);
-    console.log(`Calibrating ${name}: Current max speed: ${calibrationState.speedMax.toFixed(2)}`);
-}
-
-function startCalibration(landmark) {
-    if (calibrationState.isActive) return;
-    calibrationState = {
-        isActive: true,
-        landmark: landmark,
-        speedMax: 0
-    };
-    console.log(`Starting calibration for ${landmark}`);
-}
-
-function stopCalibration() {
-    if (calibrationState.isActive && calibrationState.landmark) {
-        const newThreshold = calibrationState.speedMax * 0.9;
-        landmarkConfig[calibrationState.landmark].speedThreshold = newThreshold;
-        console.log(`Calibration complete for ${calibrationState.landmark}. New threshold: ${newThreshold.toFixed(2)}`);
+        videoCtx.restore();
     }
-    calibrationState = { isActive: false, landmark: null, speedMax: 0 };
-}
 
-// Utility functions
-function logLandmarkData(name, speed, threshold) {
-    //console.log(`${name} - Speed: ${speed.toFixed(2)}, Threshold: ${threshold.toFixed(2)}`);
-}
+    function updateFPS() {
+        const currentTime = performance.now();
+        const deltaTime = currentTime - lastTimestamp;
+        lastTimestamp = currentTime;
 
-function areLandmarksVisible(landmarks) {
-    return landmarks.every(landmark => landmark && landmark.visibility > VISIBILITY_THRESHOLD);
-}
+        fps = 1000 / deltaTime;
+        fpsHistory.push(fps);
+        if (fpsHistory.length > FPS_AVERAGE_COUNT) {
+            fpsHistory.shift();
+        }
 
-// This is temporary. It should go to a gauge or something in the html
-function displayPeakSpeeds() {
-    if (!videoCtx) return;
-
-    videoCtx.font = '16px Arial';
-    videoCtx.fillStyle = 'white';
-    videoCtx.textAlign = 'left';
-    videoCtx.textBaseline = 'top';
-
-    let yOffset = 10;
-    for (const [name, config] of Object.entries(landmarkConfig)) {
-        const text = `${name} Peak Speed: ${config.peakSpeed.toFixed(2)}`;
-        videoCtx.fillText(text, 10, yOffset);
-        yOffset += 20;
+        const averageFps = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
+        fpsDisplay.textContent = `FPS: ${averageFps.toFixed(1)}`;
     }
-}
 
-// Error handling function
-function handleErrorState(status, message) {
-    videoErrorStatus = status;
-    if (alertDisplay) {
+    function handleErrorState(status, message) {
         alertDisplay.textContent = message;
     }
-    //console.warn(`Error State: ${status} - ${message}`);
-}
 
-// Clear error state function
-function clearErrorState() {
-    videoErrorStatus = 0;
-    if (alertDisplay) {
+    function clearErrorState() {
         alertDisplay.textContent = '';
     }
-}
 
-// Smoothing for the FPS measurement
-// Probably overkill
-
-const FPS_EMA_ALPHA = 0.1; // Smoothing factor for FPS EMA (0.1 is more smooth, 0.3 would be more responsive)
-const FPS_UPDATE_INTERVAL = 500; // Update FPS display every 500ms
-
-// FPS calculation variables
-let lastFpsUpdateTime = 0;
-let frameCount = 0;
-let fpsEma = null;
-function updateFPS() {
-    const currentTime = performance.now();
-    frameCount++;
-
-    // Update FPS calculation
-    if (currentTime - lastFpsUpdateTime >= FPS_UPDATE_INTERVAL) {
-        const fps = (frameCount * 1000) / (currentTime - lastFpsUpdateTime);
-        frameCount = 0;
-        lastFpsUpdateTime = currentTime;
-
-        // Apply EMA smoothing
-        if (fpsEma === null) {
-            fpsEma = fps;
-        } else {
-            fpsEma = FPS_EMA_ALPHA * fps + (1 - FPS_EMA_ALPHA) * fpsEma;
+    // Event Listeners
+    document.getElementById('startCalibration').addEventListener('click', startCalibration);
+    document.getElementById('restartCalibration').addEventListener('click', startCalibration);
+    document.getElementById('repeatStep').addEventListener('click', () => {
+        if (gameState.phase === 'practice') {
+            gameState.startTime = performance.now();
+            updatePracticeDisplay();
         }
-
-        // Update FPS display
-        const fpsDisplay = document.getElementById('fps');
-        if (fpsDisplay) {
-            fpsDisplay.textContent = `FPS: ${fpsEma.toFixed(1)}`;
-        }
-    }
-}
-
-        // OLD VERSION of landmark processing
-        // // Called each time there are results in from MediaPipe
-        // function onResults(results) {
-        //     // Before doing anything, update the tutorial text based on the current state
-        //     // This way, if we return early, it's already set
-        //     updateTutorial();
-
-        //     // Calculate FPS
-        //     const currentTimestamp = performance.now();
-        //     fps = 1000 / (currentTimestamp - lastTimestamp);
-        //     fpsHistory.push(fps);
-        //     if (fpsHistory.length > FPS_AVERAGE_COUNT) {
-        //         fpsHistory.shift();
-        //     }
-        //     const averageFps = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
-        //     fpsDisplay.textContent = `FPS: ${averageFps.toFixed(2)}`;
-
-        //     lastTimestamp = currentTimestamp;
-
-        //     // Clear canvas
-        //     videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-        //     videoCtx.save();
-        //     videoCtx.scale(-1, 1);
-        //     videoCtx.translate(-videoCanvas.width, 0);
-        //     videoCtx.drawImage(videoElement, 0, 0, videoCanvas.width, videoCanvas.height);
-        //     videoCtx.restore();
-
-        //     // Check if poseLandmarks exists and has the required landmarks
-        //     if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
-        //         videoErrorStatus = 1;
-        //         alertDisplay.textContent = "Pose landmarks not detected";
-        //         return;
-        //     }
-
-        //     // Check if required landmarks are visible
-        //     const landmarksToCheck = [
-        //         results.poseLandmarks[0],  // Nose
-        //         results.poseLandmarks[11], // Left shoulder
-        //         results.poseLandmarks[12], // Right shoulder
-        //         results.poseLandmarks[13], // Left elbow
-        //         results.poseLandmarks[14], // Right elbow
-        //         results.poseLandmarks[15], // Left wrist
-        //         results.poseLandmarks[16]  // Right wrist
-        //     ];
-
-        //     if (!areLandmarksVisible(landmarksToCheck)) {
-        //         // If the landmarks are not visible, show an alert
-        //         // Except in tutorial where there is already an alert
-        //         if (tutorialStep > 1) alertDisplay.textContent = "BACK UP";
-        //         videoErrorStatus = 2;
-        //     } else {
-        //         alertDisplay.textContent = "";
-        //         videoErrorStatus = 0;
-        //     }
-        //     // Even if the video has an error, still attempt to process some remainng points
-        //     // Todo: I'm unsure about this. Certainly when squatting it's hard to keep the hands in view
-        //     // But, if the hands are not in view, the game will be unplayable.
-        //     // Process landmarks
-        //     //console.log('Processing landmarks...');
-        //     if (processLandmark(results.poseLandmarks[0], headPositions, 'blue', 'Head')) {
-        //         return; // If the user is jumping, stop processing the rest of the landmarks
-        //     } // Nose (head)
-        //     processLandmark(results.poseLandmarks[15], leftWristPositions, 'red', 'Left Wrist'); // Left wrist
-        //     processLandmark(results.poseLandmarks[16], rightWristPositions, 'green', 'Right Wrist'); // Right wrist
-            
-        // }
-
-        // function areLandmarksVisible(landmarks) {
-        //     return landmarks.every(landmark => landmark && landmark.visibility > 0.75);
-        // }
-
-        // function processLandmark(landmark, positionArray, color, name) {
-        //     if (landmark && landmark.visibility > 0.75) {
-        //         const currentTime = performance.now();
-        //         // Should probably be an exponential moving average to respond faster
-        //         positionArray.push({ x: landmark.x, y: landmark.y, time: currentTime });
-        //         positionArray = positionArray.filter(pos => currentTime - pos.time <= smoothingLevel * 100);
-
-        //         // Calculate the average position
-        //         const avgPosition = positionArray.reduce((acc, pos) => ({
-        //             x: acc.x + pos.x,
-        //             y: acc.y + pos.y
-        //         }), { x: 0, y: 0 });
-
-        //         avgPosition.x /= positionArray.length;
-        //         avgPosition.y /= positionArray.length;
-
-        //         //console.log(`Drawing ${name} at (${avgPosition.x}, ${avgPosition.y}) with color ${color}`);
-
-        //         // Draw the smoothed position
-        //         drawCircle(avgPosition, color);
-
-        //         // Calculate speed and determine action
-        //         if (positionArray.length >= 2) {
-        //             const latestPos = positionArray[positionArray.length - 1];
-        //             const previousPos = positionArray[positionArray.length - 2];
-
-        //             const dx = latestPos.x - previousPos.x;
-        //             const dy = latestPos.y - previousPos.y;
-        //             const dt = (latestPos.time - previousPos.time) / 1000; // in seconds
-
-        //             const speed = (Math.sqrt(dx * dx + dy * dy) * videoCanvas.width / dt) * 100;
-
-        //             const distance = Math.sqrt(dx * dx + dy * dy);
-
-        //             //console.log(`${name} speed: ${speed.toFixed(2)} px/s`);
-
-                    
-        //             // if (name === 'Left Wrist' && speed > speedThreshold) {
-        //             //     latestInput = 'l';
-        //             //     console.log('Punch Left');
-        //             // } else if (name === 'Right Wrist' && speed > speedThreshold) {
-        //             //     latestInput = 'r';
-        //             //     console.log('Punch Right');
-        //             // } else if (name === 'Head') {
-        //             //     if (avgPosition.y < squatThreshold) {
-        //             //         latestInput = 'd';
-        //             //         console.log('Squat');
-        //             //     } else if (avgPosition.y > jumpThreshold) {
-        //             //         latestInput = 'u';
-        //             //         console.log('Jump');
-        //             //     }
-        //             // }
-
-
-        //             // Send input to debouncer
-        //             // Debouncer puts it in latestInput which then goes to the game
-        //             let input = null;
-
-        //             if (name === 'Left Wrist' && speed > speedThreshold && distance > minDistance) {
-        //                 input = 'l';
-
-        //             } else if (name === 'Right Wrist' && speed > speedThreshold && distance > minDistance) {
-        //                 input = 'r';
-
-        //             } else if (name === 'Head') {
-        //                 // These are reversed
-        //                 if (avgPosition.y > squatThreshold && speed > slowSpeedThreshold) {
-        //                     input = 'u';
-        //                 // TODO jumping is really hard! You have to almost hover to get this to work
-        //                 // Removed mimimum distance for jumping
-        //                 // Hardcoded a 1.5x boost
-        //                 // Stopped processing arm movements if the user is jumping
-        //                 } else if (avgPosition.y < jumpThreshold && speed*1.5 > slowSpeedThreshold && distance > minDistance) {
-        //                     input = 'h';
-
-        //                     // Early return in the case of jumping only
-        //                     // This is messy
-        //                     debounceInput(input);
-        //                     return true; 
-        //                 } else {
-        //                     input = 'n';
-        //                 }
-        //             }
-
-        //             videoErrorStatus = 0;
-        //             debounceInput(input);
-        //         }
-        //     }
-        //     return false;
-        // }
-
-        // function drawCircle(position, color) {
-        //     // Convert normalized coordinates (0-1) to canvas coordinates
-        //     const x = position.x * videoCanvas.width;
-        //     const y = position.y * videoCanvas.height;
-
-        //     console.log(`drawCircle at (${x}, ${y}) with color ${color}`);
-        //     //videoCtx.save(); // Save the current state
-        //     videoCtx.beginPath();
-        //     videoCtx.arc(x, y, 10, 0, 2 * Math.PI);
-        //     videoCtx.fillStyle = color;
-        //     videoCtx.fill();
-        //     //videoCtx.restore(); // Restore the saved state
-        // }
-
-        // BUG this is getting called with NaN/NaN sometimes!!
-        function drawCircle(position, color) {
-            const x = (videoCanvas.width - (position.x * videoCanvas.width))
-            const y = position.y * videoCanvas.height;
-            //console.log("DRAW CIRCLE AT", x, y)
-            videoCtx.save()
-            videoCtx.beginPath();
-            videoCtx.arc(x, y, 10, 0, 2 * Math.PI);
-            videoCtx.fillStyle = color;
-            videoCtx.fill();
-            videoCtx.restore();
-        }
-
-
-        const pose = new Pose({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/${file}`
-        });
-        pose.setOptions({
-            modelComplexity: 1,
-            smoothLandmarks: true,
-            enableSegmentation: false,
-            smoothSegmentation: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-        pose.onResults(onResults);
-
-        let camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await pose.send({ image: videoElement });
-            },
-            width: 640,
-            height: 480,
-            facingMode: 'user'
-        });
-        camera.start();
-        videoElement.style.display = 'none';
-        // temp -- this is used to enable video display while playing
-        document.getElementById('videoCanvas').style.display = 'block';
-
-
-        document.getElementById('smoothing').addEventListener('input', (event) => {
-            smoothingLevel = parseInt(event.target.value, 10);
-        });
-
-        document.getElementById('speedThreshold').addEventListener('input', (event) => {
-            speedThreshold = parseInt(event.target.value, 10);
-        });
-
-        document.getElementById('slowSpeedThreshold').addEventListener('input', (event) => {
-            slowSpeedThreshold = parseInt(event.target.value, 10);
-        });
-
-        document.getElementById('jumpThreshold').addEventListener('input', (event) => {
-            jumpThreshold = parseInt(event.target.value, 10) / 100;
-        });
-
-        document.getElementById('squatThreshold').addEventListener('input', (event) => {
-            squatThreshold = parseInt(event.target.value, 10) / 100;
-        });
-
-
-        document.getElementById('minDistance').addEventListener('input', (event) => {
-            minDistance = parseInt(event.target.value, 10) / 100.0;
-        });
-
-        document.getElementById('debounceFrames').addEventListener('input', (event) => {
-            debounceFrames = parseInt(event.target.value, 10);
-        });
-
-        document.getElementById('restartTutorial').addEventListener('click', () => {
-            tutorialStep = 0;
-            updateTutorial();
-            isGameRunning = false;
-            document.getElementById('videoCanvas').style.display = 'block';
-            document.getElementById('gameCanvas').style.display = 'none';
-            document.getElementById('startGame').style.display = 'block';
-        });
-
-        document.getElementById('nextTutorial').addEventListener('click', () => {
-            tutorialStep++;
-            updateTutorial();
-        });
-
-        document.getElementById('startGame').addEventListener('click', () => {
-            document.getElementById('videoCanvas').style.display = 'none';
-            document.getElementById('gameCanvas').style.display = 'block';
-            document.getElementById('startGame').style.display = 'none';
-            tutorialStep = 6; // Skip the tutorial if the user starts early
-            tutorialDisplay.textContent = ""; // Don't want to change this inside the game loop
-            isGameRunning = true;
-            gameLoop();
-        });
-
-
+    });
+    document.getElementById('startGame').addEventListener('click', () => {
+        gameState.phase = 'game';
+        document.getElementById('videoCanvas').style.display = 'none';
+        document.getElementById('gameCanvas').style.display = 'block';
+        document.getElementById('startGame').style.display = 'none';
+        isGameRunning = true;
+        resetGameState();
+        gameLoop();
+    });
 
 
         // ----------------------------------------
@@ -1337,6 +1086,18 @@ function updateFPS() {
                 if (flashIntensity > 0) {
                     flashIntensity = Math.max(0, flashIntensity - deltaTime / 100);
                 }
+            }
+
+            function resetGameState() {
+                gameField = Array(ROWS).fill().map(() => Array(COLUMNS).fill(-1));
+                score = 0;
+                currentPiece = createNewPiece();
+                animatingRows = [];
+                animationState = 'none';
+                slidingBlocks = [];
+                dropCounter = 0;
+                actionHistory = [];
+                //updateActionHistory(); not sure
             }
 
             // Main game loop
