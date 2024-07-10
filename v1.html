@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,16 +18,29 @@
             color: #b9a6ff;
         }
 
-        #score, #fps, #speedDisplay {
+        #score,
+        #fps,
+        #speedDisplay {
             position: absolute;
             font-size: 24px;
             font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
 
-        #score { top: 20px; left: 20px; }
-        #fps { top: 20px; right: 20px; }
-        #speedDisplay { bottom: 20px; left: 20px; }
+        #score {
+            top: 20px;
+            left: 20px;
+        }
+
+        #fps {
+            top: 20px;
+            right: 20px;
+        }
+
+        #speedDisplay {
+            bottom: 20px;
+            left: 20px;
+        }
 
         #controls {
             position: absolute;
@@ -36,7 +50,8 @@
             flex-direction: column;
         }
 
-        #alert, #tutorial {
+        #alert,
+        #tutorial {
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
@@ -44,8 +59,15 @@
             text-align: center;
         }
 
-        #alert { top: 100px; color: #f99797; }
-        #tutorial { top: 50px; color: white; }
+        #alert {
+            top: 100px;
+            color: #f99797;
+        }
+
+        #tutorial {
+            top: 50px;
+            color: white;
+        }
 
         button {
             font-size: 14px;
@@ -96,8 +118,120 @@
             left: 20px;
             font-size: 16px;
         }
+
+
+        /* Debug panel */
+
+        #debugPanel {
+            position: absolute;
+            background-color: #2d2d2d;
+            border-radius: 4px;
+            padding: 10px;
+            top: 600px; /* well below main content */
+            left: 10px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .group {
+            background-color: #383838;
+            border-radius: 4px;
+            padding: 5px;
+            width: 48%;
+        }
+
+        .meter-container {
+            position: relative;
+            margin-top: 2px;
+        }
+
+        .meter {
+            background-color: #555;
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .meter-fill {
+            height: 100%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            width: 0;
+        }
+
+        .meter-target,
+        .meter-peak {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+        }
+
+        .meter-target {
+            background-color: #ff0;
+        }
+
+        .meter-peak {
+            background-color: #f0f;
+        }
+
+        .warning {
+            color: #f44;
+            font-weight: bold;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 2px 5px;
+            border-radius: 3px;
+            display: none;
+        }
+
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+
+        .status-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .value {
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .value:hover {
+            text-decoration: underline;
+        }
+
+        .plot-container {
+            display: none;
+            background-color: #444;
+            padding: 5px;
+            margin-top: 5px;
+            border-radius: 3px;
+        }
+
+        .plot {
+            width: 100%;
+            height: 100px;
+        }
     </style>
 </head>
+
 <body>
     <div id="controls">
         <label for="smoothing">Smoothing Level:</label>
@@ -108,8 +242,10 @@
         <input type="range" id="calibrationAttempts" name="calibrationAttempts" min="1" max="5" value="3">
         <label for="calibrationCountdown">Calibration Countdown (s):</label>
         <input type="range" id="calibrationCountdown" name="calibrationCountdown" min="1" max="10" value="3">
-        <label for="calibrationThresholdMultiplier">Calibration Threshold Multiplier (%):</label>
-        <input type="range" id="calibrationThresholdMultiplier" name="calibrationThresholdMultiplier" min="50" max="100" value="90">
+        <label for="calibrationThresholdMultiplier">Calibration Threshold
+            Multiplier (%):</label>
+        <input type="range" id="calibrationThresholdMultiplier" name="calibrationThresholdMultiplier" min="50" max="100"
+            value="90">
         <label for="jumpThreshold">Jump Height Threshold (%):</label>
         <input type="range" id="jumpThreshold" name="jumpThreshold" min="1" max="100" value="30">
         <label for="squatThreshold">Squat Height Threshold (%):</label>
@@ -128,571 +264,906 @@
     <div id="score">Score: 0</div>
     <button id="startGame" style="display:none;">Start Game</button>
 
+    <div id="debugPanel">
+        <div class="status-line">
+            <h2>Debug Panel</h2>
+            <span>Status: <span id="captureStatus" class="value"></span></span>
+            <span>Last Action: <span id="lastAction" class="value"></span></span>
+            <button id="toggleButton">Hide</button>
+            <button id="pauseButton">Pause</button>
+        </div>
+        <div id="captureWarning" class="warning"></div>
+        <div id="debugContent"></div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/pose.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-  
-    <script>
-    // Constants and Configuration
-    let CONFIG = {
-        SMOOTHING_LEVEL: 1,
-        MIN_SPEED_THRESHOLD: 20,
-        CALIBRATION_ATTEMPTS: 3,
-        CALIBRATION_COUNTDOWN: 3,
-        CALIBRATION_THRESHOLD_MULTIPLIER: 0.9,
-        JUMP_THRESHOLD: 0.3,
-        SQUAT_THRESHOLD: 0.7,
-        TIME_WINDOW: 100,
-        DEBOUNCE_FRAMES: 4,
-        PEAK_SPEED_WINDOW: 1000
-    };
+    <script> 
+        // DEBUG PANEL
+        // This is primarily to help in figuring out the calibration system.
+        // It may be removed and disabled in the future. 
 
-    // Update CONFIG based on slider inputs
-    document.getElementById('smoothing').addEventListener('input', (e) => {
-        CONFIG.SMOOTHING_LEVEL = parseInt(e.target.value);
-        updateEMAAlpha();
-    });
-    document.getElementById('minSpeedThreshold').addEventListener('input', (e) => CONFIG.MIN_SPEED_THRESHOLD = parseInt(e.target.value));
-    document.getElementById('calibrationAttempts').addEventListener('input', (e) => CONFIG.CALIBRATION_ATTEMPTS = parseInt(e.target.value));
-    document.getElementById('calibrationCountdown').addEventListener('input', (e) => CONFIG.CALIBRATION_COUNTDOWN = parseInt(e.target.value));
-    document.getElementById('calibrationThresholdMultiplier').addEventListener('input', (e) => CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER = parseInt(e.target.value) / 100);
-    document.getElementById('jumpThreshold').addEventListener('input', (e) => CONFIG.JUMP_THRESHOLD = parseInt(e.target.value) / 100);
-    document.getElementById('squatThreshold').addEventListener('input', (e) => CONFIG.SQUAT_THRESHOLD = parseInt(e.target.value) / 100);
+        class DebugPanel {
+            constructor() {
+                this.data = {
+                    captureStatus: '',
+                    captureWarning: '',
+                    lastAction: '',
+                    actions: {
+                        rightWrist: { speed: 0, target: 50, peak: 0 },
+                        leftWrist: { speed: 0, target: 50, peak: 0 },
+                        jump: { speed: 0, speedTarget: 50, y: 0, yTarget: 50, yPeak: 0 },
+                        squat: { speed: 0, speedTarget: 50, y: 0, yTarget: 50, yPeak: 0 }
+                    }
+                };
+                this.lastUpdate = Date.now();
+                this.lastPeakClear = Date.now();
+                this.peakClearInterval = 3000; // Clear peaks every 3 seconds
+                this.isVisible = true;
+                this.isPaused = false;
+                this.plotData = {};
+                this.maxPlotPoints = 100;
 
-    // Global Variables
-    let EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
-    const videoElement = document.createElement('video');
-    const videoCanvas = document.getElementById('videoCanvas');
-    const videoCtx = videoCanvas.getContext('2d');
-    const gameCanvas = document.getElementById('gameCanvas');
-    const gl = gameCanvas.getContext('webgl');
-    const scoreElement = document.getElementById('score');
-    const fpsDisplay = document.getElementById('fps');
-    const alertDisplay = document.getElementById('alert');
-    const tutorialDisplay = document.getElementById('tutorial');
-    const speedDisplay = document.getElementById('speedDisplay');
-    const actionHistoryDisplay = document.getElementById('actionHistory');
-
-    let isGameRunning = false;
-    let lastTimestamp = performance.now();
-    let fps = 0;
-    let fpsHistory = [];
-    const FPS_AVERAGE_COUNT = 10;
-
-    let latestInput = null;
-    let actionHistory = [];
-    const MAX_HISTORY = 5;
-
-    // Landmark Configuration
-    const landmarkConfig = {
-        leftWrist: { index: 15, color: 'red' },
-        rightWrist: { index: 16, color: 'green' },
-        nose: { index: 0, color: 'blue' },
-        // not sure these are correct
-        jump: { index: 0, color: 'green' },
-        squat: { index: 0, color: 'purple' }
-    };
-
-    // Calibration and Practice State
-    let gameState = {
-        phase: 'idle', // 'idle', 'calibration', 'practice', 'game'
-        step: 'leftWrist',
-        attempts: [],
-        countdown: CONFIG.CALIBRATION_COUNTDOWN,
-        lastCountdownTime: 0,
-        startTime: 0,
-        maxTime: 30000 // 30 seconds max per step
-    };
-
-    let calibrationData = {
-        leftWrist: { speeds: [], threshold: 0 },
-        rightWrist: { speeds: [], threshold: 0 },
-        jump: { speeds: [], threshold: 0, maxY: 0, minY: 1 },
-        squat: { speeds: [], threshold: 0, maxY: 0, minY: 1 }
-    };
-
-    // Debounce System
-    let debounceCounters = { l: 0, r: 0, u: 0, h: 0, n: 0 };
-
-    function resetDebounceCounters() {
-        Object.keys(debounceCounters).forEach(key => debounceCounters[key] = 0);
-    }
-
-    function debounceInput(input) {
-        let mult = (input === 'h' || input === 'u') ? 2 : 1;
-        if (input) {
-            debounceCounters[input]++;
-            if (debounceCounters[input] >= (CONFIG.DEBOUNCE_FRAMES * mult)) {
-                sendInput(input);
-                resetDebounceCounters();
+                this.initElements();
+                this.createActionGroups();
+                this.initEventListeners();
             }
-        } else {
-            resetDebounceCounters();
+
+            initElements() {
+                this.elements = {
+                    captureStatus: document.getElementById('captureStatus'),
+                    captureWarning: document.getElementById('captureWarning'),
+                    lastAction: document.getElementById('lastAction'),
+                    toggleButton: document.getElementById('toggleButton'),
+                    pauseButton: document.getElementById('pauseButton'),
+                    debugContent: document.getElementById('debugContent')
+                };
+            }
+
+            createActionGroups() {
+                const content = document.createDocumentFragment();
+                let row;
+                Object.keys(this.data.actions).forEach((action, index) => {
+                    if (index % 2 === 0) {
+                        row = document.createElement('div');
+                        row.className = 'row';
+                        content.appendChild(row);
+                    }
+                    const group = this.createActionGroup(action);
+                    row.appendChild(group);
+                });
+                this.elements.debugContent.appendChild(content);
+            }
+
+            createActionGroup(action) {
+                const group = document.createElement('div');
+                group.className = 'group';
+                group.innerHTML = `
+                    <h3>${action.charAt(0).toUpperCase() + action.slice(1)}</h3>
+                    <div>Speed: <span id="${action}Speed" class="value" onclick="debugPanel.togglePlot('${action}', 'speed')"></span> / <span id="${action}Target"></span></div>
+                    <div>Peak: <span id="${action}Peak" class="value" onclick="debugPanel.togglePlot('${action}', 'peak')"></span></div>
+                    <div class="meter-container">
+                        <div class="meter">
+                            <div id="${action}Meter" class="meter-fill"></div>
+                        </div>
+                        <div id="${action}TargetMark" class="meter-target"></div>
+                        <div id="${action}PeakMark" class="meter-peak"></div>
+                    </div>
+                    <div id="${action}SpeedPlot" class="plot-container">
+                        <canvas class="plot"></canvas>
+                    </div>
+                    <div id="${action}PeakPlot" class="plot-container">
+                        <canvas class="plot"></canvas>
+                    </div>
+                    ${!action.includes('Wrist') ? `
+                        <div>Y: <span id="${action}Y" class="value" onclick="debugPanel.togglePlot('${action}', 'y')"></span> / <span id="${action}YTarget"></span></div>
+                        <div>Y Peak: <span id="${action}YPeak" class="value" onclick="debugPanel.togglePlot('${action}', 'yPeak')"></span></div>
+                        <div class="meter-container">
+                            <div class="meter">
+                                <div id="${action}YMeter" class="meter-fill"></div>
+                            </div>
+                            <div id="${action}YTargetMark" class="meter-target"></div>
+                            <div id="${action}YPeakMark" class="meter-peak"></div>
+                        </div>
+                        <div id="${action}YPlot" class="plot-container">
+                            <canvas class="plot"></canvas>
+                        </div>
+                        <div id="${action}YPeakPlot" class="plot-container">
+                            <canvas class="plot"></canvas>
+                        </div>
+                    ` : ''}
+                `;
+                return group;
+            }
+
+            initEventListeners() {
+                this.elements.toggleButton.addEventListener('click', () => this.toggleVisibility());
+                this.elements.pauseButton.addEventListener('click', () => this.togglePause());
+            }
+
+            setCaptureStatus(status) {
+                if (this.isPaused) return;
+                this.data.captureStatus = status;
+            }
+
+            setCaptureWarning(warning) {
+                if (this.isPaused) return;
+                this.data.captureWarning = warning;
+                this.elements.captureWarning.style.display = warning ? 'block' : 'none';
+            }
+
+            setLastAction(action) {
+                if (this.isPaused) return;
+                this.data.lastAction = action;
+            }
+
+            setActionData(action, data) {
+                if (this.isPaused) return;
+                const currentData = this.data.actions[action];
+                this.data.actions[action] = { ...currentData, ...data };
+                
+                if ((data.speed ?? 0) > (currentData.peak ?? 0)) {
+                    this.data.actions[action].peak = data.speed;
+                }
+                
+                if ((data.y ?? 0) > (currentData.yPeak ?? 0)) {
+                    this.data.actions[action].yPeak = data.y;
+                }
+
+                // Update plot data
+                Object.keys(data).forEach(key => {
+                    const plotKey = `${action}_${key}`;
+                    if (!this.plotData[plotKey]) {
+                        this.plotData[plotKey] = [];
+                    }
+                    this.plotData[plotKey].push(data[key]);
+                    if (this.plotData[plotKey].length > this.maxPlotPoints) {
+                        this.plotData[plotKey].shift();
+                    }
+                });
+            }
+
+            clearPeaks() {
+                Object.keys(this.data.actions).forEach(action => {
+                    this.data.actions[action].peak = 0;
+                    if (this.data.actions[action].yPeak !== undefined) {
+                        this.data.actions[action].yPeak = 0;
+                    }
+                });
+            }
+
+            toggleVisibility() {
+                this.isVisible = !this.isVisible;
+                this.elements.debugContent.style.display = this.isVisible ? 'block' : 'none';
+                this.elements.toggleButton.textContent = this.isVisible ? 'Hide' : 'Show';
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                this.elements.pauseButton.textContent = this.isPaused ? 'Resume' : 'Pause';
+            }
+
+            togglePlot(action, type) {
+                const plotContainer = document.getElementById(`${action}${type.charAt(0).toUpperCase() + type.slice(1)}Plot`);
+                if (plotContainer.style.display === 'none' || plotContainer.style.display === '') {
+                    plotContainer.style.display = 'block';
+                    this.updatePlot(action, type);
+                } else {
+                    plotContainer.style.display = 'none';
+                }
+            }
+
+            updatePlot(action, type) {
+                const plotKey = `${action}_${type}`;
+                const canvas = document.querySelector(`#${action}${type.charAt(0).toUpperCase() + type.slice(1)}Plot canvas`);
+                const ctx = canvas.getContext('2d');
+                const data = this.plotData[plotKey];
+
+                if (!data || data.length === 0) return;
+
+                const width = canvas.width;
+                const height = canvas.height;
+                const max = Math.max(...data);
+                const min = Math.min(...data);
+
+                ctx.clearRect(0, 0, width, height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#4CAF50';
+                ctx.lineWidth = 2;
+
+                data.forEach((value, index) => {
+                    const x = (index / (data.length - 1)) * width;
+                    const y = height - ((value - min) / (max - min)) * height;
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+            }
+
+            updateDOM() {
+                if (!this.isVisible) return;
+                const now = Date.now();
+                if (now - this.lastUpdate < 100) return;
+                this.lastUpdate = now;
+
+                if (now - this.lastPeakClear >= this.peakClearInterval) {
+                    this.clearPeaks();
+                    this.lastPeakClear = now;
+                }
+
+                this.elements.captureStatus.textContent = this.data.captureStatus;
+                this.elements.captureWarning.textContent = this.data.captureWarning;
+                this.elements.lastAction.textContent = this.data.lastAction;
+
+                Object.entries(this.data.actions).forEach(([action, data]) => {
+                    this.updateActionInfo(action, data);
+                });
+            }
+
+            updateActionInfo(action, data) {
+                const speed = document.getElementById(`${action}Speed`);
+                const target = document.getElementById(`${action}Target`);
+                const peak = document.getElementById(`${action}Peak`);
+                const meter = document.getElementById(`${action}Meter`);
+                const targetMark = document.getElementById(`${action}TargetMark`);
+                const peakMark = document.getElementById(`${action}PeakMark`);
+
+                if (speed) speed.textContent = (data.speed ?? 0).toFixed(2);
+                if (target) target.textContent = ((data.target ?? data.speedTarget) ?? 0).toFixed(2);
+                if (peak) peak.textContent = (data.peak ?? 0).toFixed(2);
+
+                this.updateMeter(
+                    meter, 
+                    targetMark, 
+                    peakMark, 
+                    data.speed ?? 0, 
+                    (data.target ?? data.speedTarget) ?? 0, 
+                    data.peak ?? 0
+                );
+
+                if (!action.includes('Wrist')) {
+                    const yValue = document.getElementById(`${action}Y`);
+                    const yTarget = document.getElementById(`${action}YTarget`);
+                    const yPeak = document.getElementById(`${action}YPeak`);
+                    const yMeter = document.getElementById(`${action}YMeter`);
+                    const yTargetMark = document.getElementById(`${action}YTargetMark`);
+                    const yPeakMark = document.getElementById(`${action}YPeakMark`);
+
+                    if (yValue) yValue.textContent = (data.y ?? 0).toFixed(2);
+                    if (yTarget) yTarget.textContent = (data.yTarget ?? 0).toFixed(2);
+                    if (yPeak) yPeak.textContent = (data.yPeak ?? 0).toFixed(2);
+
+                    this.updateMeter(
+                        yMeter, 
+                        yTargetMark, 
+                        yPeakMark, 
+                        data.y ?? 0, 
+                        data.yTarget ?? 0, 
+                        data.yPeak ?? 0
+                    );
+                }
+
+                // Update plots if they are visible
+                ['speed', 'peak', 'y', 'yPeak'].forEach(type => {
+                    const plotContainer = document.getElementById(`${action}${type.charAt(0).toUpperCase() + type.slice(1)}Plot`);
+                    if (plotContainer && plotContainer.style.display !== 'none') {
+                        this.updatePlot(action, type);
+                    }
+                });
+            }
+
+            updateMeter(meter, targetMark, peakMark, value, target, peak) {
+                if (!meter || !targetMark || !peakMark) return;
+
+                const percentage = Math.min(Math.max(((value ?? 0) / 100) * 100, 0), 100);
+                const targetPercentage = Math.min(Math.max(((target ?? 0) / 100) * 100, 0), 100);
+                const peakPercentage = Math.min(Math.max(((peak ?? 0) / 100) * 100, 0), 100);
+
+                meter.style.width = `${percentage}%`;
+                targetMark.style.left = `${targetPercentage}%`;
+                peakMark.style.left = `${peakPercentage}%`;
+
+                const diff = Math.abs((value ?? 0) - (target ?? 0));
+                meter.style.backgroundColor = diff <= 10 ? '#4CAF50' : diff <= 20 ? '#FFA500' : '#FF4444';
+            }
         }
-    }
 
-    function sendInput(input) {
-        latestInput = input;
-        const actionName = {
-            'l': 'leftWrist',
-            'r': 'rightWrist',
-            'h': 'jump',
-            'u': 'squat'
-        }[input];
-        updateSpeedDisplay(actionName, calibrationData[actionName].threshold);
-    }
 
-    // Calibration Functions
-    function startCalibration() {
-        isGameRunning = false;
-        document.getElementById('videoCanvas').style.display = 'block';
-        document.getElementById('gameCanvas').style.display = 'none';
-        lastPositions.leftWrist = null;
-    lastPositions.rightWrist = null;
-    lastPositions.nose = null;
-        gameState = {
-            phase: 'calibration',
+    </script>
+    <script>
+
+        // TODO Cross Origin Isolation will improve the timing accuracy fom 100us to 5us
+        // timing accuracy is greatly needed for speed measurment
+
+        // I think I can do that with s3 bucket headers???
+
+        // Constants and Configuration
+        let CONFIG = {
+            SMOOTHING_LEVEL: 1,
+            MIN_SPEED_THRESHOLD: 20,
+            CALIBRATION_ATTEMPTS: 3,
+            CALIBRATION_COUNTDOWN: 3,
+            CALIBRATION_THRESHOLD_MULTIPLIER: 0.9,
+            JUMP_THRESHOLD: 0.3,
+            SQUAT_THRESHOLD: 0.7,
+            TIME_WINDOW: 100,
+            DEBOUNCE_FRAMES: 4,
+            PEAK_SPEED_WINDOW: 1000
+        };
+
+        // Update CONFIG based on slider inputs
+        document.getElementById('smoothing').addEventListener('input', (e) => {
+            CONFIG.SMOOTHING_LEVEL = parseInt(e.target.value);
+            updateEMAAlpha();
+        });
+        document.getElementById('minSpeedThreshold').addEventListener('input', (e) => CONFIG.MIN_SPEED_THRESHOLD = parseInt(e.target.value));
+        document.getElementById('calibrationAttempts').addEventListener('input', (e) => CONFIG.CALIBRATION_ATTEMPTS = parseInt(e.target.value));
+        document.getElementById('calibrationCountdown').addEventListener('input', (e) => CONFIG.CALIBRATION_COUNTDOWN = parseInt(e.target.value));
+        document.getElementById('calibrationThresholdMultiplier').addEventListener('input', (e) => CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER = parseInt(e.target.value) / 100);
+        document.getElementById('jumpThreshold').addEventListener('input', (e) => CONFIG.JUMP_THRESHOLD = parseInt(e.target.value) / 100);
+        document.getElementById('squatThreshold').addEventListener('input', (e) => CONFIG.SQUAT_THRESHOLD = parseInt(e.target.value) / 100);
+
+        // Global Variables
+        // This is not really a constant oops
+        let EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
+
+        const videoElement = document.createElement('video');
+        const videoCanvas = document.getElementById('videoCanvas');
+        const videoCtx = videoCanvas.getContext('2d');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gl = gameCanvas.getContext('webgl');
+        const scoreElement = document.getElementById('score');
+        const fpsDisplay = document.getElementById('fps');
+        const alertDisplay = document.getElementById('alert');
+        const tutorialDisplay = document.getElementById('tutorial');
+        const speedDisplay = document.getElementById('speedDisplay');
+        const actionHistoryDisplay = document.getElementById('actionHistory');
+
+        let isGameRunning = false;
+        let lastTimestamp = performance.now();
+        let fps = 0;
+        let fpsHistory = [];
+        const FPS_AVERAGE_COUNT = 10;
+
+        let latestInput = null;
+        let actionHistory = [];
+        const MAX_HISTORY = 5;
+
+
+        const debugPanel = new DebugPanel();
+        debugPanel.setCaptureStatus('Active');
+
+        // Landmark Configuration
+        const landmarkConfig = {
+            leftWrist: { index: 15, color: 'red' },
+            rightWrist: { index: 16, color: 'green' },
+            nose: { index: 0, color: 'blue' },
+            // not sure these are correct
+            jump: { index: 0, color: 'green' },
+            squat: { index: 0, color: 'purple' }
+        };
+
+        // Calibration and Practice State
+        let gameState = {
+            phase: 'idle', // 'idle', 'calibration', 'practice', 'game'
             step: 'leftWrist',
             attempts: [],
             countdown: CONFIG.CALIBRATION_COUNTDOWN,
-            lastCountdownTime: performance.now(),
-            startTime: performance.now(),
-            maxTime: 30000,
+            lastCountdownTime: 0,
+            startTime: 0,
+            maxTime: 30000 // 30 seconds max per step
         };
-        updateCalibrationDisplay();
-    }
 
+        let calibrationData = {
+            leftWrist: { speeds: [], threshold: 0 },
+            rightWrist: { speeds: [], threshold: 0 },
+            jump: { speeds: [], threshold: 0, maxY: 0, minY: 1 },
+            squat: { speeds: [], threshold: 0, maxY: 0, minY: 1 }
+        };
 
-    function updateCalibration(step, landmark, speed) {
-        // I'm not sure calibration should ever time out. I don't see the point.
-    // if (performance.now() - gameState.startTime > gameState.maxTime) {
-    //     showWarning("Calibration step timed out. Restarting step.");
-    //     console.log("timeout    ")
-    //     restartCalibrationStep();
-    //     return;
-    // }
-    //console.log("updateCalibration", step, speed, CONFIG.MIN_SPEED_THRESHOLD, performance.now() - gameState.startTime)
-    // This is completely messed up. We need a different state variable to track if we are in the first 3 seconds and display a proper message every time. 
-    if (performance.now() - gameState.startTime < 3000) {
-        console.log("too soon", performance.now() - gameState.startTime)
-        updateCalibrationDisplay();
-        return; // Skip the first 3 seconds so we don't detect over and over again
-    }
+        // Debounce System
+        let debounceCounters = { l: 0, r: 0, u: 0, h: 0, n: 0 };
 
-
-
-    // Check if the movement is significant enough
-    const lastPosition = lastPositions[step === 'jump' || step === 'squat' ? 'nose' : step];
-    if (lastPosition) {
-        const dx = landmark.x - lastPosition.x;
-        const dy = landmark.y - lastPosition.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        // You may need to adjust this threshold
-        const movementThreshold = 0.2; // 20% of the frame size
-
-        // Ideally we would skip this step if the momentum is too small, however lastPosition was already updated as part of calculateSpeed
-        // so it is not possible to skip this step 
-        // Could move that update to a different function
-        if (distance < movementThreshold) {
-             //console.log("movement too small", distance, step, lastPosition, landmark)
-             return; // Movement is too small, ignore it
+        function resetDebounceCounters() {
+            Object.keys(debounceCounters).forEach(key => debounceCounters[key] = 0);
         }
-    }
-    if ((speed>30 || Math.round(performance.now()%10)==0))  console.log(speed, CONFIG.MIN_SPEED_THRESHOLD)
-    if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
-        gameState.attempts.push(speed);
-        gameState.startTime = performance.now(); // Wait another 3 seconds before accepting new data
-        if (step === 'jump' || step === 'squat') {
-            calibrationData[step].maxY = Math.max(calibrationData[step].maxY, landmark.y);
-            calibrationData[step].minY = Math.min(calibrationData[step].minY, landmark.y);
+
+        function debounceInput(input) {
+            let mult = (input === 'h' || input === 'u') ? 2 : 1;
+            if (input) {
+                debounceCounters[input]++;
+                if (debounceCounters[input] >= (CONFIG.DEBOUNCE_FRAMES * mult)) {
+                    sendInput(input);
+                    resetDebounceCounters();
+                }
+            } else {
+                resetDebounceCounters();
+            }
         }
-        
-        if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
-            finishCalibrationStep();
-        } else if (Math.round(performance.now() % 100) === 0){
-            // Only do this every 100 loops. This is a very expensive operation.
-            // This is buggy
+
+        function sendInput(input) {
+            latestInput = input;
+            const actionName = {
+                'l': 'leftWrist',
+                'r': 'rightWrist',
+                'h': 'jump',
+                'u': 'squat'
+            }[input];
+            updateSpeedDisplay(actionName, calibrationData[actionName].threshold);
+        }
+
+        // Calibration Functions
+        function startCalibration() {
+            isGameRunning = false;
+            document.getElementById('videoCanvas').style.display = 'block';
+            document.getElementById('gameCanvas').style.display = 'none';
+            lastPositions.leftWrist = null;
+            lastPositions.rightWrist = null;
+            lastPositions.nose = null;
+            gameState = {
+                phase: 'calibration',
+                step: 'leftWrist',
+                attempts: [],
+                countdown: CONFIG.CALIBRATION_COUNTDOWN,
+                lastCountdownTime: performance.now(),
+                startTime: performance.now(),
+                maxTime: 30000,
+            };
             updateCalibrationDisplay();
         }
-    }
-}
 
-    function finishCalibrationStep() {
-        const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / CONFIG.CALIBRATION_ATTEMPTS;
-        calibrationData[gameState.step].speeds = gameState.attempts;
-        calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
 
-        switch (gameState.step) {
-            case 'leftWrist': gameState.step = 'rightWrist'; break;
-            case 'rightWrist': gameState.step = 'jump'; break;
-            case 'jump': gameState.step = 'squat'; break;
-            case 'squat': finishCalibration(); return;
-        }
-        
-        gameState.attempts = [];
-        gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
-        gameState.lastCountdownTime = performance.now();
-        gameState.startTime = performance.now();
-        updateCalibrationDisplay();
-    }
-
-    function finishCalibration() {
-        gameState.phase = 'practice';
-        startPracticeStage();
-    }
-
-    function restartCalibrationStep() {
-        gameState.attempts = [];
-        gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
-        gameState.startTime = performance.now();
-        updateCalibrationDisplay();
-    }
-
-    function updateCalibrationDisplay() {
-        const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
-        if (performance.now() - gameState.startTime < 3000) {
-            tutorialDisplay.textContent = `Calibrating ${stepName} : Wait for the countdown`;
-            alertDisplay.textContent = `Next in: ${Math.ceil((3000 - (performance.now() - gameState.startTime)) / 1000)}s`;
-            return;
-        }
-        tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${gameState.attempts.length + 1}/${CONFIG.CALIBRATION_ATTEMPTS}`;
-        // I don't see the point of this
-        // const currentTime = performance.now();
-        // if (currentTime - gameState.lastCountdownTime > 1000) {
-        //     gameState.countdown--;
-        //     gameState.lastCountdownTime = currentTime;
-        //     if (gameState.countdown <= 0) {
-        //         finishCalibrationStep();
-        //     }
-        // }
-        
-        const attemptDisplay = gameState.attempts.map(speed => 
-            speed //speed >= CONFIG.MIN_SPEED_THRESHOLD ? '✅' : '❌'
-        ).join(' ');
-        alertDisplay.textContent = `Next in: ${gameState.countdown}s | Attempts: ${attemptDisplay}`;
-
-    }
-
-    // Practice Stage Functions
-    function startPracticeStage() {
-        isGameRunning = false;
-        document.getElementById('videoCanvas').style.display = 'block';
-        document.getElementById('gameCanvas').style.display = 'none';
-
-        gameState = {
-            phase: 'practice',
-            step: 'leftWrist',
-            completed: [],
-            startTime: performance.now(),
-            maxTime: 60000 // 60 seconds for entire practice
-        };
-        updatePracticeDisplay();
-    }
-
-    function updatePractice(step, landmark, speed) {
-    if (performance.now() - gameState.startTime > gameState.maxTime) {
-        finishPractice();
-        return;
-    }
-
-    const threshold = calibrationData[step].threshold;
-    const percentOfThreshold = (speed / threshold) * 100;
-    
-    if (speed >= threshold) {
-        showSuccess(`Great job! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold)`);
-        gameState.completed.push(step);
-        moveToNextPracticeStep();
-    } else if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
-        showWarning(`Close! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold). Try again!`);
-    }
-    updatePracticeDisplay();
-}
-
-    function moveToNextPracticeStep() {
-        switch (gameState.step) {
-            case 'leftWrist': gameState.step = 'rightWrist'; break;
-            case 'rightWrist': gameState.step = 'jump'; break;
-            case 'jump': gameState.step = 'squat'; break;
-            case 'squat': finishPractice(); return;
-        }
-        updatePracticeDisplay();
-    }
-
-    function finishPractice() {
-        gameState.phase = 'ready';
-        document.getElementById('startGame').style.display = 'block';
-        tutorialDisplay.textContent = "Great job! You're ready to play!";
-        alertDisplay.textContent = "Click 'Start Game' when you're ready.";
-    }
-
-    function updatePracticeDisplay() {
-        const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
-        tutorialDisplay.textContent = `Practice ${stepName}`;
-        alertDisplay.textContent = `Completed: ${gameState.completed.join(', ')}`;
-    }
-
-    function showWarning(message) {
-        alertDisplay.textContent = message;
-        alertDisplay.style.color = '#ffaa00';
-        setTimeout(() => {
-            alertDisplay.style.color = '#f99797';
-        }, 2000);
-    }
-
-    function showSuccess(message) {
-        alertDisplay.textContent = message;
-        alertDisplay.style.color = '#00ff00';
-        setTimeout(() => {
-            alertDisplay.style.color = '#f99797';
-        }, 2000);
-    }
-
-    // Speed Display and Action History
-    function updateSpeedDisplay(action, speed) {
-        const actionColor = {
-            leftWrist: 'red',
-            rightWrist: 'blue',
-            jump: 'green',
-            squat: 'purple'
-        }[action] || 'black';
-
-        speedDisplay.innerHTML = `<span style="color:${actionColor}">${action.toUpperCase()}</span> ${speed.toFixed(0)}`;
-        
-        actionHistory.unshift({ action, speed, time: new Date() });
-        if (actionHistory.length > MAX_HISTORY) {
-            actionHistory.pop();
-        }
-
-        updateActionHistory();
-    }
-
-    function updateActionHistory() {
-        actionHistoryDisplay.innerHTML = actionHistory.map(item => 
-            `<div>${item.time.toLocaleTimeString()}: ${item.action} - ${item.speed.toFixed(0)}</div>`
-        ).join('');
-    }
-
-    // Video Processing and Pose Detection
-    const pose = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/${file}`
-    });
-
-    pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        smoothSegmentation: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-    });
-
-    pose.onResults(onResults);
-
-    let camera = new Camera(videoElement, {
-        onFrame: async () => {
-            await pose.send({ image: videoElement });
-        },
-        width: 640,
-        height: 480,
-        facingMode: 'user'
-    });
-
-    camera.start();
-
-    function onResults(results) {
-    updateFPS();
-    drawVideoFrame(results);
-
-    if (!validateResults(results)) return;
-
-    //clearErrorState();
-
-    if (gameState.phase === 'calibration' || gameState.phase === 'practice') {
-        let relevantLandmark;
-        let relevantStep = gameState.step;
-
-        // If the step is 'jump' or 'squat', use the nose landmark
-        if (gameState.step === 'jump' || gameState.step === 'squat') {
-            relevantStep = 'nose';
-        }
-
-        if (landmarkConfig[relevantStep]) {
-            relevantLandmark = results.poseLandmarks[landmarkConfig[relevantStep].index];
-        } else {
-            console.error(`Unknown step: ${gameState.step}`);
-            return;
-        }
-        //console.log(relevantLandmark, relevantStep)
-        if (relevantLandmark) {
-            const speed = calculateSpeed(relevantLandmark, relevantStep);
-            if (gameState.phase === 'calibration') {
-                updateCalibration(gameState.step, relevantLandmark, speed);
-            } else {
-                updatePractice(gameState.step, relevantLandmark, speed);
-            }
-            
-            lastPositions[name] = {
-            x: relevantLandmark.x,
-            y: relevantLandmark.y,
-            time: performance.now()}
-            
+        function updateCalibration(step, landmark, speed) {
+            // I'm not sure calibration should ever time out. I don't see the point.
+            // if (performance.now() - gameState.startTime > gameState.maxTime) {
+            //     showWarning("Calibration step timed out. Restarting step.");
+            //     console.log("timeout    ")
+            //     restartCalibrationStep();
+            //     return;
+            // }
+            //console.log("updateCalibration", step, speed, CONFIG.MIN_SPEED_THRESHOLD, performance.now() - gameState.startTime)
+            // This is completely messed up. We need a different state variable to track if we are in the first 3 seconds and display a proper message every time. 
+            if (performance.now() - gameState.startTime < 3000) {
+                console.log("too soon", performance.now() - gameState.startTime)
+                updateCalibrationDisplay();
+                return; // Skip the first 3 seconds so we don't detect over and over again
             }
 
-    } else if (gameState.phase === 'game') {
-        for (const [name, config] of Object.entries(landmarkConfig)) {
-            if (config.index !== undefined) {  // Only process landmarks with defined indices
-                const landmark = results.poseLandmarks[config.index];
-                //if (processLandmark(landmark, name)) return; // Early return on jump detection
-                // does not work right now
-                skip=processLandmark(landmark, name);
-                // double check
-                lastPositions[name] = {
-        x: landmark.x,
-        y: landmark.y,
-        time: performance.now()
+
+
+            // Check if the movement is significant enough
+            const lastPosition = lastPositions[step === 'jump' || step === 'squat' ? 'nose' : step];
+            if (lastPosition) {
+                const dx = landmark.x - lastPosition.x;
+                const dy = landmark.y - lastPosition.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // You may need to adjust this threshold
+                const movementThreshold = 0.2; // 20% of the frame size
+
+                // Ideally we would skip this step if the momentum is too small, however lastPosition was already updated as part of calculateSpeed
+                // so it is not possible to skip this step 
+                // Could move that update to a different function
+                if (distance < movementThreshold) {
+                    //console.log("movement too small", distance, step, lastPosition, landmark)
+                    return; // Movement is too small, ignore it
+                }
             }
-            if (skip) return; // Early return on jump detection
-            // Not sure this actually works. Is nose guaranteed to come before wrist? No idea
-        }
-    }
+            if ((speed > 30 || Math.round(performance.now() % 10) == 0)) console.log(speed, CONFIG.MIN_SPEED_THRESHOLD)
+            if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
+                gameState.attempts.push(speed);
+                gameState.startTime = performance.now(); // Wait another 3 seconds before accepting new data
+                if (step === 'jump' || step === 'squat') {
+                    calibrationData[step].maxY = Math.max(calibrationData[step].maxY, landmark.y);
+                    calibrationData[step].minY = Math.min(calibrationData[step].minY, landmark.y);
+                }
 
-        // Update last position
-        // The last position is used for the speed calculation, and also the minumum distance calculation
-        // updateCalibration, updatePractice, and processLandmark should all check the minimumDistance so it should be factored out
-
-
-}
-}
-
-    function validateResults(results) {
-        if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
-            handleErrorState(1, "Pose landmarks not detected");
-            return false;
-        }
-
-        const requiredLandmarks = [0, 11, 12, 13, 14, 15, 16].map(i => results.poseLandmarks[i]);
-        if (!areLandmarksVisible(requiredLandmarks)) {
-            handleErrorState(2, "Please step back");
-            return false;
-        }
-
-        return true;
-    }
-
-    function areLandmarksVisible(landmarks) {
-        return landmarks.every(landmark => landmark && landmark.visibility > 0.75);
-    }
-
-    function processLandmark(landmark, name) {
-        if (!landmark || landmark.visibility <= 0.75) return false;
-
-        const speed = calculateSpeed(landmark, name);
-
-        if (name === 'nose') {
-            const y = landmark.y;
-            if (y < calibrationData.jump.minY && speed > calibrationData.jump.threshold) {
-                debounceInput('h'); // Jump
-                return true;
-            } else if (y > calibrationData.squat.maxY && speed > calibrationData.squat.threshold) {
-                debounceInput('u'); // Squat
-            }
-        } else {
-            const threshold = calibrationData[name].threshold;
-            if (speed > threshold) {
-                debounceInput(name === 'leftWrist' ? 'l' : 'r');
+                if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                    finishCalibrationStep();
+                } else if (Math.round(performance.now() % 100) === 0) {
+                    // Only do this every 100 loops. This is a very expensive operation.
+                    // This is buggy
+                    updateCalibrationDisplay();
+                }
             }
         }
 
-        return false;
-    }
+        function finishCalibrationStep() {
+            const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / CONFIG.CALIBRATION_ATTEMPTS;
+            calibrationData[gameState.step].speeds = gameState.attempts;
+            calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
 
+            switch (gameState.step) {
+                case 'leftWrist': gameState.step = 'rightWrist'; break;
+                case 'rightWrist': gameState.step = 'jump'; break;
+                case 'jump': gameState.step = 'squat'; break;
+                case 'squat': finishCalibration(); return;
+            }
 
-    // This is kinda messy. Globals used in calculating speed. Should put these somewhere better. 
-    let lastPositions = {
-        leftWrist: null,
-        rightWrist: null,
-        nose: null
-    };
-
-    function calculateSpeed(landmark, name) {
-    const currentTime = performance.now();
-    
-    if (!lastPositions[name]) {
-        lastPositions[name] = { x: landmark.x, y: landmark.y, time: currentTime };
-        return 0;
-    }
-
-    const dt = (currentTime - lastPositions[name].time) / 1000; // in seconds
-    if (dt === 0) return 0; // Avoid division by zero
-
-    const dx = landmark.x - lastPositions[name].x;
-    const dy = landmark.y - lastPositions[name].y;
-    const speed = Math.sqrt(dx * dx + dy * dy) / dt;
-
-
-
-    return speed * videoCanvas.width; // Scale speed to canvas width
-}
-
-    function updateEMAAlpha() {
-        EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
-    }
-
-    function drawVideoFrame(results) {
-        videoCtx.save();
-        videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
-        videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
-
-        if (results.poseLandmarks) {
-            drawConnectors(videoCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 4 });
-            drawLandmarks(videoCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 2 });
-        }
-
-        videoCtx.restore();
-    }
-
-    function updateFPS() {
-        const currentTime = performance.now();
-        const deltaTime = currentTime - lastTimestamp;
-        lastTimestamp = currentTime;
-
-        fps = 1000 / deltaTime;
-        fpsHistory.push(fps);
-        if (fpsHistory.length > FPS_AVERAGE_COUNT) {
-            fpsHistory.shift();
-        }
-
-        const averageFps = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
-        fpsDisplay.textContent = `FPS: ${averageFps.toFixed(1)}`;
-    }
-
-    function handleErrorState(status, message) {
-        alertDisplay.textContent = message;
-    }
-
-    function clearErrorState() {
-        alertDisplay.textContent = '';
-    }
-
-    // Event Listeners
-    document.getElementById('startCalibration').addEventListener('click', startCalibration);
-    document.getElementById('restartCalibration').addEventListener('click', startCalibration);
-    document.getElementById('repeatStep').addEventListener('click', () => {
-        if (gameState.phase === 'practice') {
+            gameState.attempts = [];
+            gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+            gameState.lastCountdownTime = performance.now();
             gameState.startTime = performance.now();
+            updateCalibrationDisplay();
+        }
+
+        function finishCalibration() {
+            gameState.phase = 'practice';
+            startPracticeStage();
+        }
+
+        function restartCalibrationStep() {
+            gameState.attempts = [];
+            gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+            gameState.startTime = performance.now();
+            updateCalibrationDisplay();
+        }
+
+        function updateCalibrationDisplay() {
+            const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
+            if (performance.now() - gameState.startTime < 3000) {
+                tutorialDisplay.textContent = `Calibrating ${stepName} : Wait for the countdown`;
+                alertDisplay.textContent = `Next in: ${Math.ceil((3000 - (performance.now() - gameState.startTime)) / 1000)}s`;
+                return;
+            }
+            tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${gameState.attempts.length + 1}/${CONFIG.CALIBRATION_ATTEMPTS}`;
+            // I don't see the point of this
+            // const currentTime = performance.now();
+            // if (currentTime - gameState.lastCountdownTime > 1000) {
+            //     gameState.countdown--;
+            //     gameState.lastCountdownTime = currentTime;
+            //     if (gameState.countdown <= 0) {
+            //         finishCalibrationStep();
+            //     }
+            // }
+
+            const attemptDisplay = gameState.attempts.map(speed =>
+                speed //speed >= CONFIG.MIN_SPEED_THRESHOLD ? '✅' : '❌'
+            ).join(' ');
+            alertDisplay.textContent = `Next in: ${gameState.countdown}s | Attempts: ${attemptDisplay}`;
+
+        }
+
+        // Practice Stage Functions
+        function startPracticeStage() {
+            isGameRunning = false;
+            document.getElementById('videoCanvas').style.display = 'block';
+            document.getElementById('gameCanvas').style.display = 'none';
+
+            gameState = {
+                phase: 'practice',
+                step: 'leftWrist',
+                completed: [],
+                startTime: performance.now(),
+                maxTime: 60000 // 60 seconds for entire practice
+            };
             updatePracticeDisplay();
         }
-    });
-    document.getElementById('startGame').addEventListener('click', () => {
-        gameState.phase = 'game';
-        document.getElementById('videoCanvas').style.display = 'none';
-        document.getElementById('gameCanvas').style.display = 'block';
-        document.getElementById('startGame').style.display = 'none';
-        isGameRunning = true;
-        resetGameState();
-        gameLoop();
-    });
+
+        function updatePractice(step, landmark, speed) {
+            if (performance.now() - gameState.startTime > gameState.maxTime) {
+                finishPractice();
+                return;
+            }
+
+            const threshold = calibrationData[step].threshold;
+            const percentOfThreshold = (speed / threshold) * 100;
+
+            if (speed >= threshold) {
+                showSuccess(`Great job! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold)`);
+                gameState.completed.push(step);
+                moveToNextPracticeStep();
+            } else if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
+                showWarning(`Close! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold). Try again!`);
+            }
+            updatePracticeDisplay();
+        }
+
+        function moveToNextPracticeStep() {
+            switch (gameState.step) {
+                case 'leftWrist': gameState.step = 'rightWrist'; break;
+                case 'rightWrist': gameState.step = 'jump'; break;
+                case 'jump': gameState.step = 'squat'; break;
+                case 'squat': finishPractice(); return;
+            }
+            updatePracticeDisplay();
+        }
+
+        function finishPractice() {
+            gameState.phase = 'ready';
+            document.getElementById('startGame').style.display = 'block';
+            tutorialDisplay.textContent = "Great job! You're ready to play!";
+            alertDisplay.textContent = "Click 'Start Game' when you're ready.";
+        }
+
+        function updatePracticeDisplay() {
+            const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
+            tutorialDisplay.textContent = `Practice ${stepName}`;
+            alertDisplay.textContent = `Completed: ${gameState.completed.join(', ')}`;
+        }
+
+        function showWarning(message) {
+            alertDisplay.textContent = message;
+            alertDisplay.style.color = '#ffaa00';
+            setTimeout(() => {
+                alertDisplay.style.color = '#f99797';
+            }, 2000);
+        }
+
+        function showSuccess(message) {
+            alertDisplay.textContent = message;
+            alertDisplay.style.color = '#00ff00';
+            setTimeout(() => {
+                alertDisplay.style.color = '#f99797';
+            }, 2000);
+        }
+
+        // Speed Display and Action History
+        function updateSpeedDisplay(action, speed) {
+            const actionColor = {
+                leftWrist: 'red',
+                rightWrist: 'blue',
+                jump: 'green',
+                squat: 'purple'
+            }[action] || 'black';
+
+            speedDisplay.innerHTML = `<span style="color:${actionColor}">${action.toUpperCase()}</span> ${speed.toFixed(0)}`;
+
+            actionHistory.unshift({ action, speed, time: new Date() });
+            if (actionHistory.length > MAX_HISTORY) {
+                actionHistory.pop();
+            }
+
+            updateActionHistory();
+        }
+
+        function updateActionHistory() {
+            actionHistoryDisplay.innerHTML = actionHistory.map(item =>
+                `<div>${item.time.toLocaleTimeString()}: ${item.action} - ${item.speed.toFixed(0)}</div>`
+            ).join('');
+        }
+
+        // Video Processing and Pose Detection
+        const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/${file}`
+        });
+
+        pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            smoothSegmentation: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        pose.onResults(onResults);
+
+        let camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await pose.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480,
+            facingMode: 'user'
+        });
+
+        camera.start();
+
+        function onResults(results) {
+            updateFPS();
+            drawVideoFrame(results);
+
+            debugPanel.updateDOM(); // Probably shouldn't do this every frame
+
+
+            if (!validateResults(results)) return;
+
+            //clearErrorState();
+
+            if (gameState.phase === 'calibration' || gameState.phase === 'practice') {
+                let relevantLandmark;
+                let relevantStep = gameState.step;
+
+                // If the step is 'jump' or 'squat', use the nose landmark
+                if (gameState.step === 'jump' || gameState.step === 'squat') {
+                    relevantStep = 'nose';
+                }
+
+                if (landmarkConfig[relevantStep]) {
+                    relevantLandmark = results.poseLandmarks[landmarkConfig[relevantStep].index];
+                } else {
+                    console.error(`Unknown step: ${gameState.step}`);
+                    return;
+                }
+                //console.log(relevantLandmark, relevantStep)
+                if (relevantLandmark) {
+                    const speed = calculateSpeed(relevantLandmark, relevantStep);
+                    //console.log(relevantLandmark)
+                    // TODO we should actually do this for every landmark, not just relevantLandmark
+                    debugPanel.setActionData(relevantStep,  {
+                        speed: speed,
+                        target: 100,
+                        peak: 7,
+                    });
+
+                    if (gameState.phase === 'calibration') {
+                        updateCalibration(gameState.step, relevantLandmark, speed);
+                    } else {
+                        updatePractice(gameState.step, relevantLandmark, speed);
+                    }
+
+                    lastPositions[name] = {
+                        x: relevantLandmark.x,
+                        y: relevantLandmark.y,
+                        time: performance.now()
+                    }
+
+                }
+
+            } else if (gameState.phase === 'game') {
+                for (const [name, config] of Object.entries(landmarkConfig)) {
+                    if (config.index !== undefined) {  // Only process landmarks with defined indices
+                        const landmark = results.poseLandmarks[config.index];
+                        //if (processLandmark(landmark, name)) return; // Early return on jump detection
+                        // does not work right now
+                        skip = processLandmark(landmark, name);
+                        // double check
+                        lastPositions[name] = {
+                            x: landmark.x,
+                            y: landmark.y,
+                            time: performance.now()
+                        }
+                        if (skip) return; // Early return on jump detection
+                        // Not sure this actually works. Is nose guaranteed to come before wrist? No idea
+                    }
+                }
+
+                // Update last position
+                // The last position is used for the speed calculation, and also the minumum distance calculation
+                // updateCalibration, updatePractice, and processLandmark should all check the minimumDistance so it should be factored out
+
+
+            }
+        }
+
+        function validateResults(results) {
+            if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
+                handleErrorState(1, "Pose landmarks not detected");
+                return false;
+            }
+
+            const requiredLandmarks = [0, 11, 12, 13, 14, 15, 16].map(i => results.poseLandmarks[i]);
+            if (!areLandmarksVisible(requiredLandmarks)) {
+                handleErrorState(2, "Please step back");
+                return false;
+            }
+
+            return true;
+        }
+
+        function areLandmarksVisible(landmarks) {
+            return landmarks.every(landmark => landmark && landmark.visibility > 0.75);
+        }
+
+        function processLandmark(landmark, name) {
+            if (!landmark || landmark.visibility <= 0.75) return false;
+
+            const speed = calculateSpeed(landmark, name);
+
+            debugPanel.setActionData('landmark', {
+                    speed: speed
+            });
+
+            if (name === 'nose') {
+                const y = landmark.y;
+                if (y < calibrationData.jump.minY && speed > calibrationData.jump.threshold) {
+                    debounceInput('h'); // Jump
+                    return true;
+                } else if (y > calibrationData.squat.maxY && speed > calibrationData.squat.threshold) {
+                    debounceInput('u'); // Squat
+                }
+            } else {
+                const threshold = calibrationData[name].threshold;
+                if (speed > threshold) {
+                    debounceInput(name === 'leftWrist' ? 'l' : 'r');
+                }
+            }
+
+            return false;
+        }
+
+
+        // This is kinda messy. Globals used in calculating speed. Should put these somewhere better. 
+        let lastPositions = {
+            leftWrist: null,
+            rightWrist: null,
+            nose: null
+        };
+
+        function calculateSpeed(landmark, name) {
+            const currentTime = performance.now();
+
+            if (!lastPositions[name]) {
+                lastPositions[name] = { x: landmark.x, y: landmark.y, time: currentTime };
+                return 0;
+            }
+
+            const dt = (currentTime - lastPositions[name].time) / 1000; // in seconds
+            if (dt === 0) return 0; // Avoid division by zero
+
+            const dx = landmark.x - lastPositions[name].x;
+            const dy = landmark.y - lastPositions[name].y;
+            const speed = Math.sqrt(dx * dx + dy * dy) / dt;
+
+
+
+            return speed * videoCanvas.width; // Scale speed to canvas width
+        }
+
+        function updateEMAAlpha() {
+            EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
+        }
+
+        function drawVideoFrame(results) {
+            videoCtx.save();
+            videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
+            videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
+
+            if (results.poseLandmarks) {
+                drawConnectors(videoCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 4 });
+                drawLandmarks(videoCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 2 });
+            }
+
+            videoCtx.restore();
+        }
+
+        function updateFPS() {
+            const currentTime = performance.now();
+            const deltaTime = currentTime - lastTimestamp;
+            lastTimestamp = currentTime;
+
+            fps = 1000 / deltaTime;
+            fpsHistory.push(fps);
+            if (fpsHistory.length > FPS_AVERAGE_COUNT) {
+                fpsHistory.shift();
+            }
+
+            const averageFps = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
+            fpsDisplay.textContent = `FPS: ${averageFps.toFixed(1)}`;
+        }
+
+        function handleErrorState(status, message) {
+            alertDisplay.textContent = message;
+        }
+
+        function clearErrorState() {
+            alertDisplay.textContent = '';
+        }
+
+        // Event Listeners
+        document.getElementById('startCalibration').addEventListener('click', startCalibration);
+        document.getElementById('restartCalibration').addEventListener('click', startCalibration);
+        document.getElementById('repeatStep').addEventListener('click', () => {
+            if (gameState.phase === 'practice') {
+                gameState.startTime = performance.now();
+                updatePracticeDisplay();
+            }
+        });
+        document.getElementById('startGame').addEventListener('click', () => {
+            gameState.phase = 'game';
+            document.getElementById('videoCanvas').style.display = 'none';
+            document.getElementById('gameCanvas').style.display = 'block';
+            document.getElementById('startGame').style.display = 'none';
+            isGameRunning = true;
+            resetGameState();
+            gameLoop();
+        });
+
 
 
         // ----------------------------------------
@@ -728,22 +1199,22 @@
 
         // Tetromino shapes and colors
         const SHAPES = [
-            [[1,1,1,1]],          // I
-            [[1,1],[1,1]],        // O
-            [[1,1,1],[0,1,0]],    // T
-            [[1,1,1],[1,0,0]],    // L
-            [[1,1,1],[0,0,1]],    // J
-            [[1,1,0],[0,1,1]],    // S
-            [[0,1,1],[1,1,0]]     // Z
+            [[1, 1, 1, 1]],          // I
+            [[1, 1], [1, 1]],        // O
+            [[1, 1, 1], [0, 1, 0]],    // T
+            [[1, 1, 1], [1, 0, 0]],    // L
+            [[1, 1, 1], [0, 0, 1]],    // J
+            [[1, 1, 0], [0, 1, 1]],    // S
+            [[0, 1, 1], [1, 1, 0]]     // Z
         ];
         const COLORS = [
-            [1,0,0,1],    // Red
-            [0,1,0,1],    // Green
-            [0,0,1,1],    // Blue
-            [1,1,0,1],    // Yellow
-            [1,0,1,1],    // Magenta
-            [0,1,1,1],    // Cyan
-            [1,.5,0,1]    // Orange
+            [1, 0, 0, 1],    // Red
+            [0, 1, 0, 1],    // Green
+            [0, 0, 1, 1],    // Blue
+            [1, 1, 0, 1],    // Yellow
+            [1, 0, 1, 1],    // Magenta
+            [0, 1, 1, 1],    // Cyan
+            [1, .5, 0, 1]    // Orange
         ];
 
         // Initialize WebGL
@@ -853,12 +1324,12 @@
             function drawRectangle(x, y, width, height, color, flash = 0) {
                 const yFlipped = canvas.height - y - height; // Flip y-coordinate for OpenGL
                 gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x,yFlipped,x+width,yFlipped,x,yFlipped+height,x,yFlipped+height,x+width,yFlipped,x+width,yFlipped+height]), gl.STATIC_DRAW);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x, yFlipped, x + width, yFlipped, x, yFlipped + height, x, yFlipped + height, x + width, yFlipped, x + width, yFlipped + height]), gl.STATIC_DRAW);
                 gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(positionLocation);
 
                 gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]), gl.STATIC_DRAW);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
                 gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(texCoordLocation);
 
@@ -869,9 +1340,9 @@
 
             // Draw the game field
             function drawField(flash = 0) {
-                drawRectangle(0, 0, canvas.width, canvas.height, [0,0,0,0], flash);
-                for (let x = 0; x <= COLUMNS; x++) drawRectangle(x * BLOCK_SIZE - 1, 0, 2, canvas.height, [1,1,1,0.2], flash);
-                for (let y = 0; y <= ROWS; y++) drawRectangle(0, y * BLOCK_SIZE - 1, canvas.width, 2, [1,1,1,0.2], flash);
+                drawRectangle(0, 0, canvas.width, canvas.height, [0, 0, 0, 0], flash);
+                for (let x = 0; x <= COLUMNS; x++) drawRectangle(x * BLOCK_SIZE - 1, 0, 2, canvas.height, [1, 1, 1, 0.2], flash);
+                for (let y = 0; y <= ROWS; y++) drawRectangle(0, y * BLOCK_SIZE - 1, canvas.width, 2, [1, 1, 1, 0.2], flash);
                 for (let y = 0; y < ROWS; y++) {
                     for (let x = 0; x < COLUMNS; x++) {
                         if (gameField[y][x] !== -1) {
@@ -916,10 +1387,10 @@
 
             // Check for collisions
             function checkCollision() {
-                return currentPiece.shape.some((row, y) => row.some((value, x) => 
+                return currentPiece.shape.some((row, y) => row.some((value, x) =>
                     value && (
                         y + currentPiece.y >= ROWS ||
-                        x + currentPiece.x < 0 || 
+                        x + currentPiece.x < 0 ||
                         x + currentPiece.x >= COLUMNS ||
                         (gameField[y + currentPiece.y] && gameField[y + currentPiece.y][x + currentPiece.x] !== -1)
                     )
@@ -983,7 +1454,7 @@
                         } else if (rowsCleared > 0) {
                             for (let x = 0; x < COLUMNS; x++) {
                                 if (gameField[y][x] !== -1) {
-                                    slidingBlocks.push({x, startY: y, destY: y + rowsCleared});
+                                    slidingBlocks.push({ x, startY: y, destY: y + rowsCleared });
                                 }
                             }
                         }
@@ -1040,7 +1511,7 @@
             function handleInput() {
                 if (animationState !== 'none') return;
                 switch (latestInput) {
-                    case 'l': 
+                    case 'l':
                         currentPiece.x--;
                         playSoundEffect(audioLeft) // TODO don't play if collission
                         if (checkCollision()) {
@@ -1113,10 +1584,10 @@
                 gl.clear(gl.COLOR_BUFFER_BIT);
                 gl.useProgram(program);
                 gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
-                
+
                 drawField(flashIntensity);
                 drawPiece(flashIntensity);
-                
+
                 scoreElement.textContent = `Score: ${score}`;
 
                 requestAnimationFrame(gameLoop);
@@ -1128,4 +1599,5 @@
         }
     </script>
 </body>
+
 </html>

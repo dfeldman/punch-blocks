@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Debug Panel with Plots</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #fff;
+            margin: 0;
+            padding: 10px;
+            font-size: 12px;
+        }
+        #debugPanel {
+            background-color: #2d2d2d;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .group {
+            background-color: #383838;
+            border-radius: 4px;
+            padding: 5px;
+            width: 48%;
+        }
+        .meter-container { position: relative; margin-top: 2px; }
+        .meter {
+            background-color: #555;
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .meter-fill {
+            height: 100%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            width: 0;
+        }
+        .meter-target, .meter-peak {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+        }
+        .meter-target { background-color: #ff0; }
+        .meter-peak { background-color: #f0f; }
+        .warning {
+            color: #f44;
+            font-weight: bold;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: rgba(0,0,0,0.7);
+            padding: 2px 5px;
+            border-radius: 3px;
+            display: none;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+        .status-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .value { 
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .value:hover {
+            text-decoration: underline;
+        }
+        .plot-container {
+            display: none;
+            background-color: #444;
+            padding: 5px;
+            margin-top: 5px;
+            border-radius: 3px;
+        }
+        .plot {
+            width: 100%;
+            height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div id="debugPanel">
+        <div class="status-line">
+            <h2>Debug Panel</h2>
+            <span>Status: <span id="captureStatus" class="value"></span></span>
+            <span>Last Action: <span id="lastAction" class="value"></span></span>
+            <button id="toggleButton">Hide</button>
+            <button id="pauseButton">Pause</button>
+        </div>
+        <div id="captureWarning" class="warning"></div>
+        <div id="debugContent"></div>
+    </div>
+
+    <script>
+        class DebugPanel {
+            constructor() {
+                this.data = {
+                    captureStatus: '',
+                    captureWarning: '',
+                    lastAction: '',
+                    actions: {
+                        rightWrist: { speed: 0, target: 50, peak: 0 },
+                        leftWrist: { speed: 0, target: 50, peak: 0 },
+                        jump: { speed: 0, speedTarget: 50, y: 0, yTarget: 50, yPeak: 0 },
+                        squat: { speed: 0, speedTarget: 50, y: 0, yTarget: 50, yPeak: 0 }
+                    }
+                };
+                this.lastUpdate = Date.now();
+                this.lastPeakClear = Date.now();
+                this.peakClearInterval = 3000; // Clear peaks every 3 seconds
+                this.isVisible = true;
+                this.isPaused = false;
+                this.plotData = {};
+                this.maxPlotPoints = 100;
+
+                this.initElements();
+                this.createActionGroups();
+                this.initEventListeners();
+            }
+
+            initElements() {
+                this.elements = {
+                    captureStatus: document.getElementById('captureStatus'),
+                    captureWarning: document.getElementById('captureWarning'),
+                    lastAction: document.getElementById('lastAction'),
+                    toggleButton: document.getElementById('toggleButton'),
+                    pauseButton: document.getElementById('pauseButton'),
+                    debugContent: document.getElementById('debugContent')
+                };
+            }
+
+            createActionGroups() {
+                const content = document.createDocumentFragment();
+                let row;
+                Object.keys(this.data.actions).forEach((action, index) => {
+                    if (index % 2 === 0) {
+                        row = document.createElement('div');
+                        row.className = 'row';
+                        content.appendChild(row);
+                    }
+                    const group = this.createActionGroup(action);
+                    row.appendChild(group);
+                });
+                this.elements.debugContent.appendChild(content);
+            }
+
+            createActionGroup(action) {
+                const group = document.createElement('div');
+                group.className = 'group';
+                group.innerHTML = `
+                    <h3>${action.charAt(0).toUpperCase() + action.slice(1)}</h3>
+                    <div>Speed: <span id="${action}Speed" class="value" onclick="debugPanel.togglePlot('${action}', 'speed')"></span> / <span id="${action}Target"></span></div>
+                    <div>Peak: <span id="${action}Peak" class="value" onclick="debugPanel.togglePlot('${action}', 'peak')"></span></div>
+                    <div class="meter-container">
+                        <div class="meter">
+                            <div id="${action}Meter" class="meter-fill"></div>
+                        </div>
+                        <div id="${action}TargetMark" class="meter-target"></div>
+                        <div id="${action}PeakMark" class="meter-peak"></div>
+                    </div>
+                    <div id="${action}SpeedPlot" class="plot-container">
+                        <canvas class="plot"></canvas>
+                    </div>
+                    <div id="${action}PeakPlot" class="plot-container">
+                        <canvas class="plot"></canvas>
+                    </div>
+                    ${!action.includes('Wrist') ? `
+                        <div>Y: <span id="${action}Y" class="value" onclick="debugPanel.togglePlot('${action}', 'y')"></span> / <span id="${action}YTarget"></span></div>
+                        <div>Y Peak: <span id="${action}YPeak" class="value" onclick="debugPanel.togglePlot('${action}', 'yPeak')"></span></div>
+                        <div class="meter-container">
+                            <div class="meter">
+                                <div id="${action}YMeter" class="meter-fill"></div>
+                            </div>
+                            <div id="${action}YTargetMark" class="meter-target"></div>
+                            <div id="${action}YPeakMark" class="meter-peak"></div>
+                        </div>
+                        <div id="${action}YPlot" class="plot-container">
+                            <canvas class="plot"></canvas>
+                        </div>
+                        <div id="${action}YPeakPlot" class="plot-container">
+                            <canvas class="plot"></canvas>
+                        </div>
+                    ` : ''}
+                `;
+                return group;
+            }
+
+            initEventListeners() {
+                this.elements.toggleButton.addEventListener('click', () => this.toggleVisibility());
+                this.elements.pauseButton.addEventListener('click', () => this.togglePause());
+            }
+
+            setCaptureStatus(status) {
+                if (this.isPaused) return;
+                this.data.captureStatus = status;
+            }
+
+            setCaptureWarning(warning) {
+                if (this.isPaused) return;
+                this.data.captureWarning = warning;
+                this.elements.captureWarning.style.display = warning ? 'block' : 'none';
+            }
+
+            setLastAction(action) {
+                if (this.isPaused) return;
+                this.data.lastAction = action;
+            }
+
+            setActionData(action, data) {
+                if (this.isPaused) return;
+                const currentData = this.data.actions[action];
+                this.data.actions[action] = { ...currentData, ...data };
+                
+                if ((data.speed ?? 0) > (currentData.peak ?? 0)) {
+                    this.data.actions[action].peak = data.speed;
+                }
+                
+                if ((data.y ?? 0) > (currentData.yPeak ?? 0)) {
+                    this.data.actions[action].yPeak = data.y;
+                }
+
+                // Update plot data
+                Object.keys(data).forEach(key => {
+                    const plotKey = `${action}_${key}`;
+                    if (!this.plotData[plotKey]) {
+                        this.plotData[plotKey] = [];
+                    }
+                    this.plotData[plotKey].push(data[key]);
+                    if (this.plotData[plotKey].length > this.maxPlotPoints) {
+                        this.plotData[plotKey].shift();
+                    }
+                });
+            }
+
+            clearPeaks() {
+                Object.keys(this.data.actions).forEach(action => {
+                    this.data.actions[action].peak = 0;
+                    if (this.data.actions[action].yPeak !== undefined) {
+                        this.data.actions[action].yPeak = 0;
+                    }
+                });
+            }
+
+            toggleVisibility() {
+                this.isVisible = !this.isVisible;
+                this.elements.debugContent.style.display = this.isVisible ? 'block' : 'none';
+                this.elements.toggleButton.textContent = this.isVisible ? 'Hide' : 'Show';
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                this.elements.pauseButton.textContent = this.isPaused ? 'Resume' : 'Pause';
+            }
+
+            togglePlot(action, type) {
+                const plotContainer = document.getElementById(`${action}${type.charAt(0).toUpperCase() + type.slice(1)}Plot`);
+                if (plotContainer.style.display === 'none' || plotContainer.style.display === '') {
+                    plotContainer.style.display = 'block';
+                    this.updatePlot(action, type);
+                } else {
+                    plotContainer.style.display = 'none';
+                }
+            }
+
+            updatePlot(action, type) {
+                const plotKey = `${action}_${type}`;
+                const canvas = document.querySelector(`#${action}${type.charAt(0).toUpperCase() + type.slice(1)}Plot canvas`);
+                const ctx = canvas.getContext('2d');
+                const data = this.plotData[plotKey];
+
+                if (!data || data.length === 0) return;
+
+                const width = canvas.width;
+                const height = canvas.height;
+                const max = Math.max(...data);
+                const min = Math.min(...data);
+
+                ctx.clearRect(0, 0, width, height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#4CAF50';
+                ctx.lineWidth = 2;
+
+                data.forEach((value, index) => {
+                    const x = (index / (data.length - 1)) * width;
+                    const y = height - ((value - min) / (max - min)) * height;
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+            }
+
+            updateDOM() {
+                if (!this.isVisible) return;
+                const now = Date.now();
+                if (now - this.lastUpdate < 100) return;
+                this.lastUpdate = now;
+
+                if (now - this.lastPeakClear >= this.peakClearInterval) {
+                    this.clearPeaks();
+                    this.lastPeakClear = now;
+                }
+
+                this.elements.captureStatus.textContent = this.data.captureStatus;
+                this.elements.captureWarning.textContent = this.data.captureWarning;
+                this.elements.lastAction.textContent = this.data.lastAction;
+
+                Object.entries(this.data.actions).forEach(([action, data]) => {
+                    this.updateActionInfo(action, data);
+                });
+            }
+
+            updateActionInfo(action, data) {
+                const speed = document.getElementById(`${action}Speed`);
+                const target = document.getElementById(`${action}Target`);
+                const peak = document.getElementById(`${action}Peak`);
+                const meter = document.getElementById(`${action}Meter`);
+                const targetMark = document.getElementById(`${action}TargetMark`);
+                const peakMark = document.getElementById(`${action}PeakMark`);
+
+                if (speed) speed.textContent = (data.speed ?? 0).toFixed(2);
+                if (target) target.textContent = ((data.target ?? data.speedTarget) ?? 0).toFixed(2);
+                if (peak) peak.textContent = (data.peak ?? 0).toFixed(2);
+
+                this.updateMeter(
+                    meter, 
+                    targetMark, 
+                    peakMark, 
+                    data.speed ?? 0, 
+                    (data.target ?? data.speedTarget) ?? 0, 
+                    data.peak ?? 0
+                );
+
+                if (!action.includes('Wrist')) {
+                    const yValue = document.getElementById(`${action}Y`);
+                    const yTarget = document.getElementById(`${action}YTarget`);
+                    const yPeak = document.getElementById(`${action}YPeak`);
+                    const yMeter = document.getElementById(`${action}YMeter`);
+                    const yTargetMark = document.getElementById(`${action}YTargetMark`);
+                    const yPeakMark = document.getElementById(`${action}YPeakMark`);
+
+                    if (yValue) yValue.textContent = (data.y ?? 0).toFixed(2);
+                    if (yTarget) yTarget.textContent = (data.yTarget ?? 0).toFixed(2);
+                    if (yPeak) yPeak.textContent = (data.yPeak ?? 0).toFixed(2);
+
+                    this.updateMeter(
+                        yMeter, 
+                        yTargetMark, 
+                        yPeakMark, 
+                        data.y ?? 0, 
+                        data.yTarget ?? 0, 
+                        data.yPeak ?? 0
+                    );
+                }
+
+                // Update plots if they are visible
+                ['speed', 'peak', 'y', 'yPeak'].forEach(type => {
+                    const plotContainer = document.getElementById(`${action}${type.charAt(0).toUpperCase() + type.slice(1)}Plot`);
+                    if (plotContainer && plotContainer.style.display !== 'none') {
+                        this.updatePlot(action, type);
+                    }
+                });
+            }
+
+            updateMeter(meter, targetMark, peakMark, value, target, peak) {
+                if (!meter || !targetMark || !peakMark) return;
+
+                const percentage = Math.min(Math.max(((value ?? 0) / 100) * 100, 0), 100);
+                const targetPercentage = Math.min(Math.max(((target ?? 0) / 100) * 100, 0), 100);
+                const peakPercentage = Math.min(Math.max(((peak ?? 0) / 100) * 100, 0), 100);
+
+                meter.style.width = `${percentage}%`;
+                targetMark.style.left = `${targetPercentage}%`;
+                peakMark.style.left = `${peakPercentage}%`;
+
+                const diff = Math.abs((value ?? 0) - (target ?? 0));
+                meter.style.backgroundColor = diff <= 10 ? '#4CAF50' : diff <= 20 ? '#FFA500' : '#FF4444';
+            }
+        }
+
+        function testDebugPanel() {
+            const debugPanel = new DebugPanel();
+            let time = 0;
+
+            function update() {
+                time += 0.1;
+                const noise = () => (Math.random() - 0.5) * 10;
+
+                debugPanel.setCaptureStatus('Active');
+                if (Math.random() < 0.05) debugPanel.setCaptureWarning('Low light detected');
+                debugPanel.setLastAction(['Jump', 'Squat', 'Wave'][Math.floor(Math.random() * 3)]);
+
+                debugPanel.setActionData('rightWrist', {
+                    speed: 50 + 30 * Math.sin(time) + noise(),
+                    target: 70
+                });
+
+                debugPanel.setActionData('leftWrist', {
+                    speed: 50 + 30 * Math.sin(time + Math.PI) + noise(),
+                    target: 70
+                });
+
+                debugPanel.setActionData('jump', {
+                    speed: Math.abs(Math.cos(time * 0.5)) * 50,
+                    speedTarget: 40,
+                    y: 50 + 20 * Math.sin(time * 0.5) + noise(),
+                    yTarget: 80
+                });
+
+                debugPanel.setActionData('squat', {
+                    speed: Math.abs(Math.sin(time * 0.7)) * 50,
+                    speedTarget: 30,
+                    y: 50 - 20 * Math.sin(time * 0.7) + noise(),
+                    yTarget: 20
+                });
+
+                debugPanel.updateDOM();
+                requestAnimationFrame(update);
+            }
+
+            update();
+        }
+
+        let debugPanel;
+        document.addEventListener('DOMContentLoaded', () => {
+            debugPanel = new DebugPanel();
+            testDebugPanel();
+        });
+    </script>
+</body>
+</html>
