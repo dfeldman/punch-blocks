@@ -614,6 +614,7 @@
         let CONFIG = {
             MIN_SPEED_THRESHOLD: 1000,
             MIN_SPEED_THRESHOLD_HEAD: 600,
+            ATTEMPT_DURATION: 2000,
             CALIBRATION_ATTEMPTS: 1, // 3,
             CALIBRATION_COUNTDOWN: 3,
             CALIBRATION_THRESHOLD_MULTIPLIER: 0.9,
@@ -690,7 +691,7 @@
         // It isn't really used for the game itself. 
         // The gameState opject is totally rewritten in each step. This is just an example I guess.
         let gameState = {
-            phase: 'start', // 'idle', 'calibration', 'practice', 'game'
+            phase: 'start', // 'idle', 'calibration', 'practice', 'game', 'pause', 'end'
             step: 'leftWrist', // leftWrist, rightWrist, jump, squat
             attempts: [], // maximum config.CALIBRATION_ATTEMPTS attempts 
             lastAttemptTime: 0, // After attempt 1, wait 1 second before next attempt
@@ -760,7 +761,13 @@
                 maxTime: 30000,
                 frameCount: 0,
                 alertText: '',
-                alertTime: 0
+                alertTime: 0,
+                currentAttemptData: {
+                    maxSpeed: 0,
+                    startTime: 0,
+                    maxY: 0,
+                    minY: 1
+                },
             };
             updateCalibrationDisplay();
         }
@@ -777,34 +784,80 @@
 
 
 
-        function updateCalibration(landmark, speed) {
+        // function updateCalibration(landmark, speed) {
+        //     // There's a huge bug here. It just captures the first moment that's above the threshold.
+        //     // That means in general. the result will just be slightly above the threshold.
 
+
+        //     if (gameState.waitForCalibration) return;
+
+        //     threshold = CONFIG.MIN_SPEED_THRESHOLD;
+        //     if (gameState.step == 'jump' || gameState.step == 'squat') {
+        //         threshold = CONFIG.MIN_SPEED_THRESHOLD_HEAD;
+        //     }
+
+        //     if (speed >= threshold) {
+        //         console.log("CALIBRATION STEP COMPLETE", gameState.step, speed)
+        //         // Start waiting for next attempt right away
+        //         gameState.attempts.push(speed);
+        //         gameState.lastAttemptTime = performance.now();
+        //         gameState.waitForCalibration = true;
+        //         if (gameState.step === 'jump' || gameState.step === 'squat') {
+        //             calibrationData[gameState.step].maxY = Math.max(calibrationData[gameState.step].maxY, landmark.y);
+        //             calibrationData[gameState.step].minY = Math.min(calibrationData[gameState.step].minY, landmark.y);
+        //         }
+        //     }
+
+
+        //     debugPanel.setActionData(gameState.step,
+        //         {
+        //             speed: speed,
+        //             threshold: 100
+        //             // Set threshold later
+        //         })
+        //     debugPanel.updateDOM();
+        // }
+
+
+        function updateCalibration(landmark, speed) {
             if (gameState.waitForCalibration) return;
 
-            threshold = CONFIG.MIN_SPEED_THRESHOLD;
-            if (gameState.step == 'jump' || gameState.step == 'squat') {
-                threshold = CONFIG.MIN_SPEED_THRESHOLD_HEAD;
+            const threshold = (gameState.step === 'jump' || gameState.step === 'squat')
+                ? CONFIG.MIN_SPEED_THRESHOLD_HEAD
+                : CONFIG.MIN_SPEED_THRESHOLD;
+
+            const currentTime = performance.now();
+
+            // Start a new attempt if we haven't started one yet
+            if (gameState.currentAttemptData.startTime === 0 && speed >= threshold) {
+                gameState.currentAttemptData = {
+                    maxSpeed: speed,
+                    startTime: currentTime,
+                    maxY: landmark.y,
+                    minY: landmark.y
+                };
+                console.log("Started new calibration attempt for", gameState.step);
             }
 
-            if (speed >= threshold) {
-                console.log("CALIBRATION STEP COMPLETE", gameState.step, speed)
-                // Start waiting for next attempt right away
-                gameState.attempts.push(speed);
-                gameState.lastAttemptTime = performance.now();
-                gameState.waitForCalibration = true;
+            // Update attempt data if we're in the middle of an attempt
+            if (gameState.currentAttemptData.startTime !== 0) {
+                gameState.currentAttemptData.maxSpeed = Math.max(gameState.currentAttemptData.maxSpeed, speed);
+
                 if (gameState.step === 'jump' || gameState.step === 'squat') {
-                    calibrationData[gameState.step].maxY = Math.max(calibrationData[gameState.step].maxY, landmark.y);
-                    calibrationData[gameState.step].minY = Math.min(calibrationData[gameState.step].minY, landmark.y);
+                    gameState.currentAttemptData.maxY = Math.max(gameState.currentAttemptData.maxY, landmark.y);
+                    gameState.currentAttemptData.minY = Math.min(gameState.currentAttemptData.minY, landmark.y);
+                }
+                
+                if (currentTime - gameState.currentAttemptData.startTime >= CONFIG.ATTEMPT_DURATION) {
+                    finishCalibrationAttempt();
                 }
             }
 
 
-            debugPanel.setActionData(gameState.step,
-                {
-                    speed: speed,
-                    threshold: 100
-                    // Set threshold later
-                })
+            debugPanel.setActionData(gameState.step, {
+                speed: speed,
+                threshold: threshold
+            });
             debugPanel.updateDOM();
         }
 
@@ -822,26 +875,43 @@
 
 
 
+        // function finishCalibrationStep() {
+        //     const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / gameState.attempts.length;
+        //     //calibrationData[gameState.step].speeds = gameState.attempts; not used
+        //     calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
 
+
+        //     gameState.attempts = [];
+        //     gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+        //     gameState.lastCountdownTime = performance.now();
+        //     gameState.startTime = performance.now();
+        //     updateCalibrationDisplay();
+        // }
+
+
+        function finishCalibrationAttempt() {
+            console.log("Finished calibration attempt for", gameState.step, "Max speed:", gameState.currentAttemptData.maxSpeed);
+
+            gameState.attempts.push(gameState.currentAttemptData.maxSpeed);
+
+            if (gameState.step === 'jump' || gameState.step === 'squat') {
+                calibrationData[gameState.step].maxY = gameState.currentAttemptData.maxY;
+                calibrationData[gameState.step].minY = gameState.currentAttemptData.minY;
+            }
+
+            gameState.lastAttemptTime = performance.now();
+            gameState.waitForCalibration = true;
+            gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
+
+        }
 
 
         function finishCalibrationStep() {
             const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / gameState.attempts.length;
-            //calibrationData[gameState.step].speeds = gameState.attempts; not used
             calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
-
-
             gameState.attempts = [];
-            gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
-            gameState.lastCountdownTime = performance.now();
-            gameState.startTime = performance.now();
-            updateCalibrationDisplay();
+            gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
         }
-
-
-
-
-
 
 
 
@@ -1086,6 +1156,7 @@
                                 gameState.step = 'rightWrist';
                                 gameState.attempts = [];
                                 gameState.lastAttemptTime = 0;
+                                gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
                                 updateCalibrationDisplay();
                             } else {
                                 gameState.waitForCalibration = false;
@@ -1100,6 +1171,7 @@
                                 gameState.step = 'jump';
                                 gameState.attempts = [];
                                 gameState.lastAttemptTime = 0;
+                                gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
                                 updateCalibrationDisplay();
                             } else {
                                 gameState.waitForCalibration = false;
@@ -1114,6 +1186,7 @@
                                 gameState.step = 'squat';
                                 gameState.attempts = [];
                                 gameState.lastAttemptTime = 0;
+                                gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
                                 updateCalibrationDisplay();
                             } else {
                                 gameState.waitForCalibration = false;
