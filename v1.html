@@ -618,11 +618,8 @@
             CALIBRATION_ATTEMPTS: 1, // 3,
             CALIBRATION_COUNTDOWN: 3,
             CALIBRATION_THRESHOLD_MULTIPLIER: 0.9,
-            JUMP_THRESHOLD: 0.3,
-            SQUAT_THRESHOLD: 0.7,
             TIME_WINDOW: 100,
-            DEBOUNCE_FRAMES: 4,
-            PEAK_SPEED_WINDOW: 1000,
+            DEBOUNCE_FRAMES: 3,
             // These are new and don't all have controls yet
             SMOOTHING_LEVEL: 5,
             HISTORY_SIZE: 5,
@@ -631,6 +628,8 @@
             MIN_TIME_THRESHOLD: 1 / 120,   // Assuming max 120 FPS
             ANOMALY_MULTIPLIER: 3,         // For dynamic anomaly detection
             WAIT_TIME: 1000,               // 3 seconds
+            THRESHOLD_START_MULT: 0.8,
+            THRESHOLD_END_MULT: 0.8
         };
 
         // Update CONFIG based on slider inputs
@@ -642,8 +641,6 @@
         document.getElementById('calibrationAttempts').addEventListener('input', (e) => CONFIG.CALIBRATION_ATTEMPTS = parseInt(e.target.value));
         document.getElementById('calibrationCountdown').addEventListener('input', (e) => CONFIG.CALIBRATION_COUNTDOWN = parseInt(e.target.value));
         document.getElementById('calibrationThresholdMultiplier').addEventListener('input', (e) => CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER = parseInt(e.target.value) / 100);
-        document.getElementById('jumpThreshold').addEventListener('input', (e) => CONFIG.JUMP_THRESHOLD = parseInt(e.target.value) / 100);
-        document.getElementById('squatThreshold').addEventListener('input', (e) => CONFIG.SQUAT_THRESHOLD = parseInt(e.target.value) / 100);
 
         // Global Variables
         // This is not really a constant oops
@@ -681,29 +678,46 @@
         const landmarkConfig = {
             leftWrist: { index: 15, color: 'red' },
             rightWrist: { index: 16, color: 'green' },
-            nose: { index: 0, color: 'blue' },
-            // not sure these are correct
-            //jump: { index: 0, color: 'green' },
-            //squat: { index: 0, color: 'purple' }
+            nose: { index: 0, color: 'blue' }
         };
 
         // This is used for the calibration/practice state machine. 
         // It isn't really used for the game itself. 
         // The gameState opject is totally rewritten in each step. This is just an example I guess.
-        let gameState = {
-            phase: 'start', // 'idle', 'calibration', 'practice', 'game', 'pause', 'end'
-            step: 'leftWrist', // leftWrist, rightWrist, jump, squat
-            attempts: [], // maximum config.CALIBRATION_ATTEMPTS attempts 
-            lastAttemptTime: 0, // After attempt 1, wait 1 second before next attempt
-            //countdown: CONFIG.CALIBRATION_COUNTDOWN, NOT USED there is no time limit
-            lastCountdownTime: 0,
-            startTime: 0,
-            maxTime: 30000, // 30 seconds max per step
-            frameCount: 0,
-            waitForCalibration: false,
-            alertText: '',
-            alertTime: 0
-        };
+        let visState = {}
+
+        function resetVisState() {
+            visState = {
+                phase: 'start', // 'idle', 'calibration', 'practice', 'game', 'pause', 'end'
+                step: 'leftWrist', // leftWrist, rightWrist, jump, squat
+                attempts: [], // maximum config.CALIBRATION_ATTEMPTS attempts 
+                lastAttemptTime: 0, // After attempt 1, wait 1 second before next attempt
+                //countdown: CONFIG.CALIBRATION_COUNTDOWN, NOT USED there is no time limit
+                lastCountdownTime: 0,
+                startTime: 0,
+                maxTime: 30000, // 30 seconds max per step
+                frameCount: 0,
+                waitForCalibration: false,
+                alertText: '',
+                alertTime: 0,
+                // Used in Calibration mode 
+                currentAttemptData: {
+                    maxSpeed: 0,
+                    startTime: 0,
+                    maxY: 0,
+                    minY: 0
+                },
+                currentMotionData: {
+                    engaged: false,
+                    action: '',
+                    maxSpeed: 0,
+                    maxY: 0,
+                    minY: 0
+                }
+            };
+        }
+
+        resetVisState();
 
         let calibrationData = {
             leftWrist: { speeds: [], threshold: 0 },
@@ -720,6 +734,7 @@
         }
 
         function debounceInput(input) {
+            // Not sure if this actually works well enough
             let mult = (input === 'h' || input === 'u') ? 2 : 1;
             if (input) {
                 debounceCounters[input]++;
@@ -733,14 +748,7 @@
         }
 
         function sendInput(input) {
-            latestInput = input;
-            const actionName = {
-                'l': 'leftWrist',
-                'r': 'rightWrist',
-                'h': 'jump',
-                'u': 'squat'
-            }[input];
-            updateSpeedDisplay(actionName, calibrationData[actionName].threshold);
+            if (latestInput === null) latestInput = input;
         }
 
         // Calibration Functions
@@ -749,26 +757,14 @@
             document.getElementById('videoCanvas').style.display = 'block';
             document.getElementById('gameCanvas').style.display = 'none';
 
-            gameState = {
-                phase: 'calibration',
-                step: 'leftWrist',
-                attempts: [],
-                lastAttemptTime: 0,
-                waitForCalibration: false,
-                countdown: CONFIG.CALIBRATION_COUNTDOWN,
-                lastCountdownTime: performance.now(),
-                startTime: performance.now(),
-                maxTime: 30000,
-                frameCount: 0,
-                alertText: '',
-                alertTime: 0,
-                currentAttemptData: {
-                    maxSpeed: 0,
-                    startTime: 0,
-                    maxY: 0,
-                    minY: 1
-                },
-            };
+            resetVisState();
+            visState.phase = 'calibration';
+            visState.step = 'leftWrist';
+            visState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+            visState.lastCountdownTime = performance.now();
+            visState.startTime = performance.now();
+            visState.frameCount = 0;
+
             updateCalibrationDisplay();
         }
 
@@ -784,77 +780,42 @@
 
 
 
-        // function updateCalibration(landmark, speed) {
-        //     // There's a huge bug here. It just captures the first moment that's above the threshold.
-        //     // That means in general. the result will just be slightly above the threshold.
-
-
-        //     if (gameState.waitForCalibration) return;
-
-        //     threshold = CONFIG.MIN_SPEED_THRESHOLD;
-        //     if (gameState.step == 'jump' || gameState.step == 'squat') {
-        //         threshold = CONFIG.MIN_SPEED_THRESHOLD_HEAD;
-        //     }
-
-        //     if (speed >= threshold) {
-        //         console.log("CALIBRATION STEP COMPLETE", gameState.step, speed)
-        //         // Start waiting for next attempt right away
-        //         gameState.attempts.push(speed);
-        //         gameState.lastAttemptTime = performance.now();
-        //         gameState.waitForCalibration = true;
-        //         if (gameState.step === 'jump' || gameState.step === 'squat') {
-        //             calibrationData[gameState.step].maxY = Math.max(calibrationData[gameState.step].maxY, landmark.y);
-        //             calibrationData[gameState.step].minY = Math.min(calibrationData[gameState.step].minY, landmark.y);
-        //         }
-        //     }
-
-
-        //     debugPanel.setActionData(gameState.step,
-        //         {
-        //             speed: speed,
-        //             threshold: 100
-        //             // Set threshold later
-        //         })
-        //     debugPanel.updateDOM();
-        // }
-
-
         function updateCalibration(landmark, speed) {
-            if (gameState.waitForCalibration) return;
+            if (visState.waitForCalibration) return;
 
-            const threshold = (gameState.step === 'jump' || gameState.step === 'squat')
+            const threshold = (visState.step === 'jump' || visState.step === 'squat')
                 ? CONFIG.MIN_SPEED_THRESHOLD_HEAD
                 : CONFIG.MIN_SPEED_THRESHOLD;
 
             const currentTime = performance.now();
 
             // Start a new attempt if we haven't started one yet
-            if (gameState.currentAttemptData.startTime === 0 && speed >= threshold) {
-                gameState.currentAttemptData = {
+            if (visState.currentAttemptData.startTime === 0 && speed >= threshold) {
+                visState.currentAttemptData = {
                     maxSpeed: speed,
                     startTime: currentTime,
                     maxY: landmark.y,
                     minY: landmark.y
                 };
-                console.log("Started new calibration attempt for", gameState.step);
+                console.log("Started new calibration attempt for", visState.step);
             }
 
             // Update attempt data if we're in the middle of an attempt
-            if (gameState.currentAttemptData.startTime !== 0) {
-                gameState.currentAttemptData.maxSpeed = Math.max(gameState.currentAttemptData.maxSpeed, speed);
+            if (visState.currentAttemptData.startTime !== 0) {
+                visState.currentAttemptData.maxSpeed = Math.max(visState.currentAttemptData.maxSpeed, speed);
 
-                if (gameState.step === 'jump' || gameState.step === 'squat') {
-                    gameState.currentAttemptData.maxY = Math.max(gameState.currentAttemptData.maxY, landmark.y);
-                    gameState.currentAttemptData.minY = Math.min(gameState.currentAttemptData.minY, landmark.y);
+                if (visState.step === 'jump' || visState.step === 'squat') {
+                    visState.currentAttemptData.maxY = Math.max(visState.currentAttemptData.maxY, landmark.y);
+                    visState.currentAttemptData.minY = Math.min(visState.currentAttemptData.minY, landmark.y);
                 }
-                
-                if (currentTime - gameState.currentAttemptData.startTime >= CONFIG.ATTEMPT_DURATION) {
+
+                if (currentTime - visState.currentAttemptData.startTime >= CONFIG.ATTEMPT_DURATION) {
                     finishCalibrationAttempt();
                 }
             }
 
 
-            debugPanel.setActionData(gameState.step, {
+            debugPanel.setActionData(visState.step, {
                 speed: speed,
                 threshold: threshold
             });
@@ -875,42 +836,28 @@
 
 
 
-        // function finishCalibrationStep() {
-        //     const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / gameState.attempts.length;
-        //     //calibrationData[gameState.step].speeds = gameState.attempts; not used
-        //     calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
-
-
-        //     gameState.attempts = [];
-        //     gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
-        //     gameState.lastCountdownTime = performance.now();
-        //     gameState.startTime = performance.now();
-        //     updateCalibrationDisplay();
-        // }
-
-
         function finishCalibrationAttempt() {
-            console.log("Finished calibration attempt for", gameState.step, "Max speed:", gameState.currentAttemptData.maxSpeed);
+            console.log("Finished calibration attempt for", visState.step, "Max speed:", visState.currentAttemptData.maxSpeed);
 
-            gameState.attempts.push(gameState.currentAttemptData.maxSpeed);
+            visState.attempts.push(visState.currentAttemptData.maxSpeed);
 
-            if (gameState.step === 'jump' || gameState.step === 'squat') {
-                calibrationData[gameState.step].maxY = gameState.currentAttemptData.maxY;
-                calibrationData[gameState.step].minY = gameState.currentAttemptData.minY;
+            if (visState.step === 'jump' || visState.step === 'squat') {
+                calibrationData[visState.step].maxY = visState.currentAttemptData.maxY;
+                calibrationData[visState.step].minY = visState.currentAttemptData.minY;
             }
 
-            gameState.lastAttemptTime = performance.now();
-            gameState.waitForCalibration = true;
-            gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
+            visState.lastAttemptTime = performance.now();
+            visState.waitForCalibration = true;
+            visState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
 
         }
 
 
         function finishCalibrationStep() {
-            const avgSpeed = gameState.attempts.reduce((a, b) => a + b, 0) / gameState.attempts.length;
-            calibrationData[gameState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
-            gameState.attempts = [];
-            gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
+            const avgSpeed = visState.attempts.reduce((a, b) => a + b, 0) / visState.attempts.length;
+            calibrationData[visState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
+            visState.attempts = [];
+            visState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
         }
 
 
@@ -922,43 +869,44 @@
 
 
         function finishCalibration() {
-            gameState.phase = 'practice';
+            visState.phase = 'practice';
             startPracticeStage();
         }
 
         function restartCalibrationStep() {
-            gameState.attempts = [];
-            gameState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
-            gameState.startTime = performance.now();
+            visState.attempts = [];
+            visState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+            visState.startTime = performance.now();
             updateCalibrationDisplay();
         }
 
         function updateCalibrationDisplay() {
-            if (gameState.phase === 'game') {
+            if (visState.phase === 'game') {
                 tutorialDisplay.textContent = "Running";
                 return;
             }
-
-            const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
-
-            if (gameState.waitForCalibration) {
-                tutorialDisplay.textContent = `Calibrating ${stepName}: Wait for next attempt`;
-            } else {
-                tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${gameState.attempts.length + 1}/${CONFIG.CALIBRATION_ATTEMPTS}`;
+            if (visState.phase === 'calibration') {
+                const stepName = visState.step.charAt(0).toUpperCase() + visState.step.slice(1);
+                if (visState.waitForCalibration) {
+                    tutorialDisplay.textContent = `Calibrating ${stepName}: Wait for next attempt`;
+                } else {
+                    tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${visState.attempts.length + 1}/${CONFIG.CALIBRATION_ATTEMPTS}`;
+                }
             }
         }
 
         // Practice Stage Functions
         // Everything here needs to be rewritten
+        // Currently Unused
         function startPracticeStage() {
             isGameRunning = false;
             document.getElementById('videoCanvas').style.display = 'block';
             document.getElementById('gameCanvas').style.display = 'none';
 
-            gameState = {
+            resetVisState();
+            visState = {
                 phase: 'practice',
                 step: 'leftWrist',
-                completed: [],
                 startTime: performance.now(),
                 maxTime: 60000, // 60 seconds for entire practice
                 frameCount: 0
@@ -967,7 +915,7 @@
         }
 
         function updatePractice(step, landmark, speed) {
-            if (performance.now() - gameState.startTime > gameState.maxTime) {
+            if (performance.now() - visState.startTime > visState.maxTime) {
                 finishPractice();
                 return;
             }
@@ -977,7 +925,7 @@
 
             if (speed >= threshold) {
                 showSuccess(`Great job! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold)`);
-                gameState.completed.push(step);
+                visState.completed.push(step);
                 moveToNextPracticeStep();
             } else if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
                 showWarning(`Close! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold). Try again!`);
@@ -986,29 +934,29 @@
         }
 
         function moveToNextPracticeStep() {
-            switch (gameState.step) {
-                case 'leftWrist': gameState.step = 'rightWrist'; break;
-                case 'rightWrist': gameState.step = 'jump'; break;
-                case 'jump': gameState.step = 'squat'; break;
+            switch (visState.step) {
+                case 'leftWrist': visState.step = 'rightWrist'; break;
+                case 'rightWrist': visState.step = 'jump'; break;
+                case 'jump': visState.step = 'squat'; break;
                 case 'squat': finishPractice(); return;
             }
             updatePracticeDisplay();
         }
 
         function finishPractice() {
-            gameState.phase = 'ready';
+            visState.phase = 'ready';
             document.getElementById('startGame').style.display = 'block';
             tutorialDisplay.textContent = "Great job! You're ready to play!";
             alertDisplay.textContent = "Click 'Start Game' when you're ready.";
         }
 
         function updatePracticeDisplay() {
-            const stepName = gameState.step.charAt(0).toUpperCase() + gameState.step.slice(1);
+            const stepName = visState.step.charAt(0).toUpperCase() + visState.step.slice(1);
             tutorialDisplay.textContent = `Practice ${stepName}`;
-            alertDisplay.textContent = `Completed: ${gameState.completed.join(', ')}`;
+            alertDisplay.textContent = `Completed: ${visState.completed.join(', ')}`;
         }
 
-        // TODO use the gamestate.alert to display messages
+        // TODO use the visState.alert to display messages
         function showWarning(message) {
             alertDisplay.textContent = message;
             alertDisplay.style.color = '#ffaa00';
@@ -1023,31 +971,6 @@
             setTimeout(() => {
                 alertDisplay.style.color = '#f99797';
             }, 2000);
-        }
-
-        // Speed Display and Action History
-        function updateSpeedDisplay(action, speed) {
-            const actionColor = {
-                leftWrist: 'red',
-                rightWrist: 'blue',
-                jump: 'green',
-                squat: 'purple'
-            }[action] || 'black';
-
-            speedDisplay.innerHTML = `<span style="color:${actionColor}">${action.toUpperCase()}</span> ${speed.toFixed(0)}`;
-
-            actionHistory.unshift({ action, speed, time: new Date() });
-            if (actionHistory.length > MAX_HISTORY) {
-                actionHistory.pop();
-            }
-
-            updateActionHistory();
-        }
-
-        function updateActionHistory() {
-            actionHistoryDisplay.innerHTML = actionHistory.map(item =>
-                `<div>${item.time.toLocaleTimeString()}: ${item.action} - ${item.speed.toFixed(0)}</div>`
-            ).join('');
         }
 
         // Video Processing and Pose Detection
@@ -1079,18 +1002,9 @@
         console.log("Camera started")
 
         function onResults(results) {
-            //if (!validateResults(results)) return;
-
             updateFPS();
-
-
             debugPanel.updateDOM(); // Probably shouldn't do this every frame
-
-
             drawVideoFrame(results);
-
-
-
 
             for (const [name, config] of Object.entries(landmarkConfig)) {
                 if (config.index !== undefined) {  // Only process landmarks with defined indices
@@ -1100,24 +1014,13 @@
                         const landmark = results.poseLandmarks[config.index];
                         if (landmark.visibility < 0.75) continue;
 
-                        // These are the only landmarks we use for most of the calculations. HOWEVER the drawVideoFrame function can draw all
-                        // landmarks which makes it easier to debug.
                         // calculateSpeed is stateful since it does smoothing and anomaly detection
                         const speed = calculateSpeed(landmark, name);
 
-                        // // Send the landmark to the debug display with the speed data
-                        // let calibrationName = ''
-                        // if (name === 'nose') {
-                        //     calibrationName = 'jump'
-                        //     // TODO During calibration, we know if it's a jump or a squat from the gameStep
-                        //     // Later on 
-                        // } 
-
-
                         // This manages the game state. Sets the calibration step, attempts, practice mode, or game mode. 
 
-                        updateGameState();
-                        if (gameState.phase == 'start' && (name == "leftWrist" || name == "rightWrist" || name == "nose")) {
+                        updateVisState();
+                        if (visState.phase == 'start' && (name == "leftWrist" || name == "rightWrist" || name == "nose")) {
                             // For the wrist landmarks, we can display debug data right away 
                             // For the nose, we need to know if it is a squat or a jump, which requires calibration
                             // to be complete
@@ -1125,92 +1028,87 @@
                             if (displayName === "nose") displayName = "jump";
                             debugPanel.setActionData(displayName, { speed: speed });
                         }
-                        else if (gameState.phase === 'calibration' && (name == gameState.step || name == 'nose' && gameState.step == 'jump' || name == 'nose' && gameState.step == 'squat')) {
+                        else if (visState.phase === 'calibration' && (name == visState.step || name == 'nose' && visState.step == 'jump' || name == 'nose' && visState.step == 'squat')) {
                             // Update the actual calibration data. 
                             updateCalibration(landmark, speed);
                             updateCalibrationDisplay(); // This call does not seem to be working right now. Separate call in updateGameStep needed. Why?
-                        } else if (gameState.phase === 'practice') {
+                        } else if (visState.phase === 'practice') {
                             updatePractice(name, landmark, speed);
-                        } else if (gameState.phase === 'game') {
+                        } else if (visState.phase === 'game') {
                             processLandmark(landmark, name, speed);
                         }
 
                     }
                 }
             }
-            gameState.frameCount++;
+            visState.frameCount++;
         }
 
-        // This should be the only place the game state machine is updated. 
-        function updateGameState() {
-            switch (gameState.phase) {
+        // This should be the only place the vis state machine is updated. 
+        // TODO : Get practice working, add a countdown before game start
+        // add some kind of pause functionality, fix updateCalbrationDisplay
+        function updateVisState() {
+            switch (visState.phase) {
                 case 'start': break; // User has to click to start 
                 case 'calibration':
-                    switch (gameState.step) {
+                    switch (visState.step) {
                         case 'leftWrist':
-                            if (gameState.attempts.length > 0 && (performance.now() - gameState.lastAttemptTime) < CONFIG.WAIT_TIME) {
-                                gameState.waitForCalibration = true;
-                            } else if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
-                                gameState.waitForCalibration = false;
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                                visState.waitForCalibration = true;
+                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                                visState.waitForCalibration = false;
                                 finishCalibrationStep();
-                                gameState.step = 'rightWrist';
-                                gameState.attempts = [];
-                                gameState.lastAttemptTime = 0;
-                                gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
+                                resetVisState();
+                                visState.phase = 'calibration';
+                                visState.step = 'rightWrist';
                                 updateCalibrationDisplay();
                             } else {
-                                gameState.waitForCalibration = false;
+                                visState.waitForCalibration = false;
                             }
                             break;
                         case 'rightWrist':
-                            if (gameState.attempts.length > 0 && (performance.now() - gameState.lastAttemptTime) < CONFIG.WAIT_TIME) {
-                                gameState.waitForCalibration = true;
-                            } else if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
-                                gameState.waitForCalibration = false;
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                                visState.waitForCalibration = true;
+                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                                visState.waitForCalibration = false;
                                 finishCalibrationStep();
-                                gameState.step = 'jump';
-                                gameState.attempts = [];
-                                gameState.lastAttemptTime = 0;
-                                gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
+                                resetVisState
+                                visState.phase = 'calibration';
+                                visState.step = 'jump';
                                 updateCalibrationDisplay();
                             } else {
-                                gameState.waitForCalibration = false;
+                                visState.waitForCalibration = false;
                             }
                             break;
                         case 'jump':
-                            if (gameState.attempts.length > 0 && (performance.now() - gameState.lastAttemptTime) < CONFIG.WAIT_TIME) {
-                                gameState.waitForCalibration = true;
-                            } else if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
-                                gameState.waitForCalibration = false;
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                                visState.waitForCalibration = true;
+                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                                visState.waitForCalibration = false;
                                 finishCalibrationStep();
-                                gameState.step = 'squat';
-                                gameState.attempts = [];
-                                gameState.lastAttemptTime = 0;
-                                gameState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
+                                resetVisState();
+                                visState.phase = 'calibration';
+                                visState.step = 'squat';
                                 updateCalibrationDisplay();
                             } else {
-                                gameState.waitForCalibration = false;
-                                // In the middle of an attempt we do nothing
+                                visState.waitForCalibration = false;
                             }
                             break;
                         case 'squat':
-                            if (gameState.attempts.length > 0 && (performance.now() - gameState.lastAttemptTime) < CONFIG.WAIT_TIME) {
-                                gameState.waitForCalibration = true;
-                            } else if (gameState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
-                                gameState.phase = 'game'; // Add a countdown here
-                                gameState.step = '';
-                                gameState.attempts = [];
-                                gameState.lastAttemptTime = 0;
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                                visState.waitForCalibration = true;
+                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                                resetVisState();
+                                visState.phase = 'game'; // Add a countdown here
                                 document.getElementById('videoCanvas').style.display = 'none';
                                 document.getElementById('gameCanvas').style.display = 'block';
                                 document.getElementById('startGame').style.display = 'none';
                                 isGameRunning = true;
                                 updateCalibrationDisplay();
-                                resetGameState();
+                                resetVisState();
                                 gameLoop();
                             } else {
-                                gameState.waitForCalibration = false;
-                                // In the middle of an attempt we do nothing
+                                visState.waitForCalibration = false;
                             }
                             break;
                     }
@@ -1220,6 +1118,8 @@
             }
         }
 
+        // Not used to make debugging a bit easier
+        // Will add back in later
         function validateResults(results) {
             if (!results.poseLandmarks || results.poseLandmarks.length < 17) {
                 handleErrorState(1, "Pose landmarks not detected");
@@ -1240,37 +1140,95 @@
         }
 
         function processLandmark(landmark, name, speed) {
+            // The idea here is to "engage" an action at the start of the action, 
+            // and then send the input only when it stops happening and disengage. 
+            // For example, if you jump for 10 frames, it should engage at the start of the 
+            // jump motion, and then only trigger one single input at the end of the jump
+            // when speed or Y drop out of bounds. 
+
+            // A jump or squat should override any ongoing left or right motion. The reason is
+            // that when you jump or squat, your arms will probably move too. 
             if (name === 'nose') {
+                processLandmarkNose(landmark, speed);
+
+            } else {
+                processLandmarkWrist(landmark, name, speed);
+
+            }
+        }
+
+        function processLandmarkNose(landmark, speed) {
+            // Start jump or squat
+            // If leftWrist or rightWrist is going, override it
+            if (!visState.currentMotionData.engaged ||
+                (visState.currentMotionData.action == 'leftWrist' || visState.currentMotionData.action == 'rightWrist')
+            ) {
                 const y = landmark.y;
-                if (y < calibrationData.jump.minY && speed > calibrationData.jump.threshold * 0.8) {
-                    debounceInput('h'); // Jump
+                const mult = CONFIG.THRESHOLD_START_MULT
+                if (y < calibrationData.jump.minY && speed > calibrationData.jump.threshold * mult) {
+                    visState.currentMotionData = {
+                        engaged: true,
+                        action: 'jump'
+                    };
                     console.log("JUMP", speed, calibrationData.jump.threshold)
                     debugPanel.setActionData('jump', {
                         speed: speed
                     });
-                    return true;
-                } else if (y > calibrationData.squat.maxY && speed > calibrationData.squat.threshold * 0.8) {
+                } else if (y > calibrationData.squat.maxY && speed > calibrationData.squat.threshold * mult) {
+                    visState.currentMotionData = {
+                        engaged: true,
+                        action: 'squat'
+                    };
                     console.log("SQUAT", speed, calibrationData.squat.threshold)
-                    debugPanel.setActionData('squat', {
-                        speed: speed
-                    });
-                    debounceInput('u'); // Squat
+                    debugPanel.setActionData('squat', { speed: speed });
                 }
+                // End jump or squat
             } else {
-                const threshold = calibrationData[name].threshold;
-                if (speed > threshold * 0.8) {
-                    console.log("LEFT OR RIGHT", speed, threshold * 0.8)
-                    debounceInput(name === 'leftWrist' ? 'l' : 'r');
+                action = visState.currentMotionData.action;
+                const mult = CONFIG.THRESHOLD_END_MULT;
+                if (speed < calibrationData[action].threshold * mult) {
+                    visState.currentMotionData.engaged = false;
+                    sendAction(action);
+                    debugPanel.setActionData(action, { speed: speed });
                 }
-
-                debugPanel.setActionData(name, {
-                    speed: speed
-                });
             }
-
-            return false;
         }
 
+        function processLandmarkWrist(landmark, name, speed) {
+            // Start leftWrist or rightWrist
+            if (!visState.currentMotionData.engaged) {
+                const threshold = calibrationData[name].threshold;
+                const mult = CONFIG.THRESHOLD_START_MULT;
+                if (speed > threshold * mult) {
+                    visState.currentMotionData = {
+                        engaged: true,
+                        action: name
+                    };
+                    debugPanel.setActionData(name, { speed: speed });
+                }
+            } else {
+                // End leftWrist or rightWrist
+                action = visState.currentMotionData.action;
+                const mult = CONFIG.THRESHOLD_END_MULT;
+                if (speed < calibrationData[action].threshold * mult) {
+                    visState.currentMotionData.engaged = false;
+                    sendAction(action)
+                    debugPanel.setActionData(action, { speed: speed });
+                }
+            }
+        }
+
+        // Send the action into debouncing
+        // 
+        function sendAction(action) {
+            console.log("Sending action ", action)
+            switch (action) {
+                case 'jump': debounceInput('h'); break;
+                case 'squat': debounceInput('u'); break;
+                case 'rightWrist': debounceInput('r'); break;
+                case 'leftWrist': debounceInput('l'); break;
+            }
+        }
 
         // *** SPEED CALCULATION SYSTEM
         // This keeps a short term history for motion smoothing and anomaly detection
@@ -1347,17 +1305,6 @@
             return scaledSpeed;
         }
 
-        let smoothedSpeeds = {};
-
-        function getSmoothedSpeed(name, currentSpeed) {
-            if (!(name in smoothedSpeeds)) {
-                smoothedSpeeds[name] = currentSpeed;
-            } else {
-                smoothedSpeeds[name] = EMA_ALPHA * currentSpeed + (1 - EMA_ALPHA) * smoothedSpeeds[name];
-            }
-            return smoothedSpeeds[name];
-        }
-
         function updateEMAAlpha() {
             EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
         }
@@ -1394,7 +1341,7 @@
             const averageFps = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
 
             // Update the DOM every 100 frames only
-            if (gameState.frameCount % 100 == 1) {
+            if (visState.frameCount % 100 == 1) {
                 fpsDisplay.textContent = `FPS: ${averageFps.toFixed(1)}`;
             }
         }
@@ -1411,13 +1358,13 @@
         document.getElementById('startCalibration').addEventListener('click', startCalibration);
         document.getElementById('restartCalibration').addEventListener('click', startCalibration);
         document.getElementById('repeatStep').addEventListener('click', () => {
-            if (gameState.phase === 'practice') {
-                gameState.startTime = performance.now();
+            if (visState.phase === 'practice') {
+                visState.startTime = performance.now();
                 updatePracticeDisplay();
             }
         });
         document.getElementById('startGame').addEventListener('click', () => {
-            gameState.phase = 'game';
+            visState.phase = 'game';
             document.getElementById('videoCanvas').style.display = 'none';
             document.getElementById('gameCanvas').style.display = 'block';
             document.getElementById('startGame').style.display = 'none';
