@@ -230,6 +230,85 @@
             width: 100%;
             height: 100px;
         }
+
+
+        #configPanel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 320px;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            padding: 15px;
+            display: none;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .config-section {
+            margin-bottom: 15px;
+            background-color: #383838;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        #configPanel h2 {
+            font-size: 16px;
+            margin: 0 0 10px 0;
+            color: #4CAF50;
+            border-bottom: 1px solid #4CAF50;
+            padding-bottom: 5px;
+        }
+
+        .config-item {
+            margin-bottom: 10px;
+        }
+
+        #configPanel label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        #configPanel input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        #configPanel input[type="number"] {
+            width: 60px;
+            background-color: #2d2d2d;
+            color: #b9a6ff;
+            border: 1px solid #4CAF50;
+            padding: 2px 5px;
+            font-size: 12px;
+        }
+
+        #configPanel button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+
+        #configPanel button:hover {
+            background-color: #45a049;
+        }
+
+        #configPanel .default-value {
+            font-size: 10px;
+            color: #888;
+            margin-left: 5px;
+        }
+
+        #configPanel .modified {
+            color: #4CAF50;
+        }
     </style>
 </head>
 
@@ -254,6 +333,24 @@
         <button id="startCalibration">Start Calibration</button>
         <button id="restartCalibration">Restart Calibration</button>
         <button id="repeatStep">Repeat Step</button>
+        <button id="toggleConfig">Toggle Config</button>
+        <div id="configPanel">
+            <div class="config-section">
+                <h2>Calibration</h2>
+                <div id="calibrationControls"></div>
+            </div>
+            <div class="config-section">
+                <h2>Configuration</h2>
+                <div id="configControls"></div>
+            </div>
+            <div class="config-section">
+                <h2>Audio</h2>
+                <div id="audioControls"></div>
+            </div>
+            <button id="saveConfig" disabled>Save</button>
+            <button id="resetConfig">Reset</button>
+            <button id="setCalibration">Set Example Calibration</button>
+        </div>
     </div>
     <div id="fps">FPS: 0</div>
     <div id="alert"></div>
@@ -279,6 +376,231 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4/pose.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+    <script>
+        class ConfigManager {
+            constructor() {
+                this.CONFIG = {
+                    MIN_SPEED_THRESHOLD: { value: 1000, min: 500, max: 2000, step: 10, name: "Minimum Speed Threshold", order: 1 },
+                    MIN_SPEED_THRESHOLD_HEAD: { value: 600, min: 300, max: 1200, step: 10, name: "Minimum Head Speed Threshold", order: 2 },
+                    ATTEMPT_DURATION: { value: 2000, min: 1000, max: 5000, step: 100, name: "Attempt Duration (ms)", order: 3 },
+                    CALIBRATION_ATTEMPTS: { value: 1, min: 1, max: 5, step: 1, name: "Number of Calibration Attempts", order: 4 },
+                    CALIBRATION_COUNTDOWN: { value: 3, min: 1, max: 10, step: 1, name: "Calibration Countdown (seconds)", order: 5 },
+                    CALIBRATION_THRESHOLD_MULTIPLIER: { value: 0.9, min: 0.5, max: 1.5, step: 0.1, name: "Calibration Threshold Multiplier", order: 6 },
+                    SMOOTHING_LEVEL: { value: 5, min: 1, max: 10, step: 1, name: "Smoothing Level", order: 7 },
+                    THRESHOLD_START_MULT: { value: 0.8, min: 0.5, max: 1, step: 0.1, name: "Threshold Start Multiplier", order: 8 },
+                    THRESHOLD_END_MULT: { value: 0.8, min: 0.5, max: 1, step: 0.1, name: "Threshold End Multiplier", order: 9 },
+                    TIME_WINDOW: { value: 100, min: 50, max: 200, step: 10, name: "Time Window", order: 10 },
+                    DEBOUNCE_FRAMES: { value: 3, min: 1, max: 10, step: 1, name: "Debounce Frames", order: 11 },
+                    HISTORY_SIZE: { value: 5, min: 3, max: 10, step: 1, name: "History Size", order: 12 },
+                    MIN_MOVEMENT_THRESHOLD: { value: 0.001, min: 0.0001, max: 0.01, step: 0.0001, name: "Min Movement Threshold", order: 13 },
+                    MAX_MOVEMENT_THRESHOLD: { value: 0.5, min: 0.1, max: 1, step: 0.1, name: "Max Movement Threshold", order: 14 },
+                    MIN_TIME_THRESHOLD: { value: 1 / 120, min: 1 / 240, max: 1 / 60, step: 1 / 240, name: "Min Time Threshold", order: 15 },
+                    ANOMALY_MULTIPLIER: { value: 3, min: 1, max: 5, step: 0.5, name: "Anomaly Multiplier", order: 16 },
+                    WAIT_TIME: { value: 1000, min: 500, max: 2000, step: 100, name: "Wait Time", order: 17 }
+                };
+                this.CALIBRATION = {
+                    LEFT_WRIST_THRESHOLD: { value: 0, min: 0, max: 2000, step: 10, name: "Left Wrist Threshold", order: 1 },
+                    RIGHT_WRIST_THRESHOLD: { value: 0, min: 0, max: 2000, step: 10, name: "Right Wrist Threshold", order: 2 },
+                    JUMP_THRESHOLD: { value: 0, min: 0, max: 2000, step: 10, name: "Jump Threshold", order: 3 },
+                    JUMP_MAX_Y: { value: 0, min: 0, max: 1, step: 0.01, name: "Jump Max Y", order: 4 },
+                    JUMP_MIN_Y: { value: 1, min: 0, max: 1, step: 0.01, name: "Jump Min Y", order: 5 },
+                    SQUAT_THRESHOLD: { value: 0, min: 0, max: 2000, step: 10, name: "Squat Threshold", order: 6 },
+                    SQUAT_MAX_Y: { value: 0, min: 0, max: 1, step: 0.01, name: "Squat Max Y", order: 7 },
+                    SQUAT_MIN_Y: { value: 1, min: 0, max: 1, step: 0.01, name: "Squat Min Y", order: 8 }
+                };
+                this.AUDIO = {
+                    MASTER_VOLUME: { value: 0.5, min: 0, max: 1, step: 0.1, name: "Master Volume", order: 1 },
+                    MUSIC_VOLUME: { value: 0.5, min: 0, max: 1, step: 0.1, name: "Music Volume", order: 2 },
+                    SFX_VOLUME: { value: 0.5, min: 0, max: 1, step: 0.1, name: "Sound Effects Volume", order: 3 }
+                };
+                this.isModified = false;
+                this.lastCalibrationDate = null;
+            }
+
+            initUI() {
+                this.createControls('calibrationControls', this.CALIBRATION);
+                this.createControls('configControls', this.CONFIG);
+                this.createControls('audioControls', this.AUDIO);
+            }
+
+            createControls(containerId, data) {
+                const container = document.getElementById(containerId);
+                const sortedEntries = Object.entries(data).sort((a, b) => a[1].order - b[1].order);
+                for (const [key, item] of sortedEntries) {
+                    const div = document.createElement('div');
+                    div.className = 'config-item';
+                    div.innerHTML = `
+                        <label for="${key}">${item.name}:</label>
+                        <input type="range" id="${key}" min="${item.min}" max="${item.max}" step="${item.step}" value="${item.value}">
+                        <input type="number" id="${key}Value" value="${item.value}" min="${item.min}" max="${item.max}" step="${item.step}">
+                        <span class="default-value" id="${key}Default">Default</span>
+                    `;
+                    container.appendChild(div);
+
+                    const range = div.querySelector('input[type="range"]');
+                    const number = div.querySelector('input[type="number"]');
+                    const defaultSpan = div.querySelector('.default-value');
+
+                    const updateValue = (value) => {
+                        data[key].value = parseFloat(value);
+                        range.value = value;
+                        number.value = value;
+                        this.checkModified(key, value, item.value, defaultSpan);
+                    };
+
+                    range.oninput = () => updateValue(range.value);
+                    number.oninput = () => updateValue(number.value);
+
+                    item.defaultValue = item.value;
+                }
+            }
+
+            checkModified(key, currentValue, defaultValue, defaultSpan) {
+                if (currentValue != defaultValue) {
+                    defaultSpan.textContent = 'Modified';
+                    defaultSpan.classList.add('modified');
+                    this.isModified = true;
+                } else {
+                    defaultSpan.textContent = 'Default';
+                    defaultSpan.classList.remove('modified');
+                }
+                document.getElementById('saveConfig').disabled = !this.isModified;
+            }
+
+            saveConfig() {
+                localStorage.setItem('configData', JSON.stringify({
+                    CONFIG: this.CONFIG,
+                    CALIBRATION: this.CALIBRATION,
+                    AUDIO: this.AUDIO,
+                    lastCalibrationDate: this.lastCalibrationDate
+                }));
+                this.isModified = false;
+                document.getElementById('saveConfig').disabled = true;
+                console.log('Configuration saved');
+            }
+
+            loadConfig() {
+                const savedConfig = localStorage.getItem('configData');
+                if (savedConfig) {
+                    const parsedConfig = JSON.parse(savedConfig);
+                    this.CONFIG = parsedConfig.CONFIG;
+                    this.CALIBRATION = parsedConfig.CALIBRATION;
+                    this.AUDIO = parsedConfig.AUDIO;
+                    this.lastCalibrationDate = parsedConfig.lastCalibrationDate;
+                    this.updateUI();
+                    console.log('Configuration loaded');
+                }
+            }
+
+            resetConfig() {
+                for (const section of [this.CONFIG, this.CALIBRATION, this.AUDIO]) {
+                    for (const key in section) {
+                        section[key].value = section[key].defaultValue;
+                    }
+                }
+                this.lastCalibrationDate = null;
+                this.updateUI();
+                this.isModified = false;
+                document.getElementById('saveConfig').disabled = true;
+                console.log('Configuration reset to defaults');
+            }
+
+            updateUI() {
+                for (const section of [this.CONFIG, this.CALIBRATION, this.AUDIO]) {
+                    for (const [key, item] of Object.entries(section)) {
+                        const range = document.getElementById(key);
+                        const number = document.getElementById(`${key}Value`);
+                        const defaultSpan = document.getElementById(`${key}Default`);
+                        if (range && number && defaultSpan) {
+                            range.value = item.value;
+                            number.value = item.value;
+                            this.checkModified(key, item.value, item.defaultValue, defaultSpan);
+                        }
+                    }
+                }
+            }
+
+            setExampleCalibration() {
+                const exampleData = {
+                    LEFT_WRIST_THRESHOLD: 1200,
+                    RIGHT_WRIST_THRESHOLD: 1100,
+                    JUMP_THRESHOLD: 900,
+                    JUMP_MAX_Y: 0.8,
+                    JUMP_MIN_Y: 0.2,
+                    SQUAT_THRESHOLD: 800,
+                    SQUAT_MAX_Y: 0.9,
+                    SQUAT_MIN_Y: 0.3
+                };
+                for (const [key, value] of Object.entries(exampleData)) {
+                    if (this.CALIBRATION[key]) {
+                        this.CALIBRATION[key].value = value;
+                    }
+                }
+                this.lastCalibrationDate = new Date().toISOString();
+                this.updateUI();
+                this.isModified = true;
+                document.getElementById('saveConfig').disabled = false;
+                console.log('Example calibration data set');
+            }
+
+            needsCalibration() {
+                if (!this.lastCalibrationDate) return true;
+                const daysSinceCalibration = (new Date() - new Date(this.lastCalibrationDate)) / (1000 * 60 * 60 * 24);
+                return daysSinceCalibration > 7;
+            }
+
+            getValue(section, key) {
+                return this[section][key].value;
+            }
+
+            setValue(section, key, value) {
+                if (this[section][key]) {
+                    this[section][key].value = parseFloat(value);
+                    const range = document.getElementById(key);
+                    const number = document.getElementById(`${key}Value`);
+                    const defaultSpan = document.getElementById(`${key}Default`);
+                    if (range) range.value = value;
+                    if (number) number.value = value;
+                    if (defaultSpan) this.checkModified(key, value, this[section][key].defaultValue, defaultSpan);
+                    console.log(`Set ${section}.${key} to ${value}`);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const configManager = new ConfigManager();
+            const toggleButton = document.getElementById('toggleConfig');
+            const configPanel = document.getElementById('configPanel');
+            const saveButton = document.getElementById('saveConfig');
+            const resetButton = document.getElementById('resetConfig');
+            const setCalibrationButton = document.getElementById('setCalibration');
+
+            configManager.initUI();
+            configManager.loadConfig();
+
+            toggleButton.addEventListener('click', function () {
+                configPanel.style.display = configPanel.style.display === 'none' ? 'block' : 'none';
+                console.log(`Config panel ${configPanel.style.display === 'none' ? 'hidden' : 'shown'}`);
+            });
+
+            saveButton.addEventListener('click', function () {
+                configManager.saveConfig();
+            });
+
+            resetButton.addEventListener('click', function () {
+                configManager.resetConfig();
+            });
+
+            setCalibrationButton.addEventListener('click', function () {
+                configManager.setExampleCalibration();
+            });
+
+            console.log('ConfigManager initialized');
+        });
+
+    </script>
+
     <script>
         // DEBUG PANEL
         // This is primarily to help in figuring out the calibration system.
@@ -291,15 +613,16 @@
                     captureWarning: '',
                     lastAction: '',
                     actions: {
-                        rightWrist: { speed: 0, target: 50, peak: 0 },
-                        leftWrist: { speed: 0, target: 50, peak: 0 },
-                        jump: { speed: 0, speedTarget: 50, y: 0, yTarget: 50, yPeak: 0 },
-                        squat: { speed: 0, speedTarget: 50, y: 0, yTarget: 50, yPeak: 0 }
+                        rightWrist: { speed: 0, target: 1000, peak: 0 },
+                        leftWrist: { speed: 0, target: 1000, peak: 0 },
+                        jump: { speed: 0, speedTarget: 1000, y: 0, yTarget: 300, yPeak: 0 },
+                        squat: { speed: 0, speedTarget: 1000, y: 0, yTarget: 300, yPeak: 0 }
                     }
                 };
                 this.lastUpdate = Date.now();
                 this.lastPeakClear = Date.now();
-                this.peakClearInterval = 3000; // Clear peaks every 3 seconds
+                this.peakClearInterval = 10000; // Clear peaks every 10 seconds
+                this.maxVal = 2000; // Good enough for most purposes
                 this.isVisible = true;
                 this.isPaused = false;
                 this.plotData = {};
@@ -560,9 +883,10 @@
             updateMeter(meter, targetMark, peakMark, value, target, peak) {
                 if (!meter || !targetMark || !peakMark) return;
 
-                const percentage = Math.min(Math.max(((value ?? 0) / 100) * 100, 0), 100);
-                const targetPercentage = Math.min(Math.max(((target ?? 0) / 100) * 100, 0), 100);
-                const peakPercentage = Math.min(Math.max(((peak ?? 0) / 100) * 100, 0), 100);
+                const maxVal = this.maxVal; // This should come from CONFIG or something
+                const percentage = Math.min(Math.max(((value ?? 0) / maxVal) * 100, 0), 100);
+                const targetPercentage = Math.min(Math.max(((target ?? 0) / maxVal) * 100, 0), 100);
+                const peakPercentage = Math.min(Math.max(((peak ?? 0) / maxVal) * 100, 0), 100);
 
                 meter.style.width = `${percentage}%`;
                 targetMark.style.left = `${targetPercentage}%`;
@@ -619,7 +943,7 @@
             CALIBRATION_COUNTDOWN: 3,
             CALIBRATION_THRESHOLD_MULTIPLIER: 0.9,
             TIME_WINDOW: 100,
-            DEBOUNCE_FRAMES: 3,
+            DEBOUNCE_FRAMES: 1,
             // These are new and don't all have controls yet
             SMOOTHING_LEVEL: 5,
             HISTORY_SIZE: 5,
@@ -629,23 +953,10 @@
             ANOMALY_MULTIPLIER: 3,         // For dynamic anomaly detection
             WAIT_TIME: 1000,               // 3 seconds
             THRESHOLD_START_MULT: 0.8,
-            THRESHOLD_END_MULT: 0.8
+            THRESHOLD_END_MULT: 0.3
         };
 
-        // Update CONFIG based on slider inputs
-        document.getElementById('smoothing').addEventListener('input', (e) => {
-            CONFIG.SMOOTHING_LEVEL = parseInt(e.target.value);
-            updateEMAAlpha();
-        });
-        document.getElementById('minSpeedThreshold').addEventListener('input', (e) => CONFIG.MIN_SPEED_THRESHOLD = parseInt(e.target.value));
-        document.getElementById('calibrationAttempts').addEventListener('input', (e) => CONFIG.CALIBRATION_ATTEMPTS = parseInt(e.target.value));
-        document.getElementById('calibrationCountdown').addEventListener('input', (e) => CONFIG.CALIBRATION_COUNTDOWN = parseInt(e.target.value));
-        document.getElementById('calibrationThresholdMultiplier').addEventListener('input', (e) => CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER = parseInt(e.target.value) / 100);
-
         // Global Variables
-        // This is not really a constant oops
-        let EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
-
         const videoElement = document.createElement('video');
         const videoCanvas = document.getElementById('videoCanvas');
         const videoCtx = videoCanvas.getContext('2d');
@@ -672,6 +983,31 @@
         const debugPanel = new DebugPanel();
         debugPanel.setCaptureStatus('Active');
 
+        const configPanel = new ConfigManager();
+        const toggleButton = document.getElementById('toggleConfig');
+        const configPanelCntr = document.getElementById('configPanel');
+        const saveButton = document.getElementById('saveConfig');
+        const resetButton = document.getElementById('resetConfig');
+        const setCalibrationButton = document.getElementById('setCalibration');
+        configPanel.initUI();
+        toggleButton.addEventListener('click', function () {
+            configPanelCntr.style.display = configPanelCntr.style.display === 'none' ? 'block' : 'none';
+            console.log(`Config panel ${configPanelCntr.style.display === 'none' ? 'hidden' : 'shown'}`);
+        });
+
+        saveButton.addEventListener('click', function () {
+            configPanel.saveConfig();
+        });
+
+        resetButton.addEventListener('click', function () {
+            configPanel.resetConfig();
+        });
+
+        setCalibrationButton.addEventListener('click', function () {
+            configPanel.setExampleCalibration();
+        });
+        configPanel.loadConfig();
+
         // Landmark Configuration
         // This is constant configuration. It's just which landmarks we should care
         // continue processing. If a landmark isn't in here it is completely ignored.
@@ -692,7 +1028,6 @@
                 step: 'leftWrist', // leftWrist, rightWrist, jump, squat
                 attempts: [], // maximum config.CALIBRATION_ATTEMPTS attempts 
                 lastAttemptTime: 0, // After attempt 1, wait 1 second before next attempt
-                //countdown: CONFIG.CALIBRATION_COUNTDOWN, NOT USED there is no time limit
                 lastCountdownTime: 0,
                 startTime: 0,
                 maxTime: 30000, // 30 seconds max per step
@@ -707,6 +1042,7 @@
                     maxY: 0,
                     minY: 0
                 },
+                // Used in Practice mode and Game mode
                 currentMotionData: {
                     engaged: false,
                     action: '',
@@ -719,13 +1055,6 @@
 
         resetVisState();
 
-        let calibrationData = {
-            leftWrist: { speeds: [], threshold: 0 },
-            rightWrist: { speeds: [], threshold: 0 },
-            jump: { speeds: [], threshold: 0, maxY: 0, minY: 1 },
-            squat: { speeds: [], threshold: 0, maxY: 0, minY: 1 }
-        };
-
         // Debounce System
         let debounceCounters = { l: 0, r: 0, u: 0, h: 0, n: 0 };
 
@@ -734,11 +1063,12 @@
         }
 
         function debounceInput(input) {
-            // Not sure if this actually works well enough
+            // Not sure if this actually works well enough TODO
             let mult = (input === 'h' || input === 'u') ? 2 : 1;
+            let frames = configPanel.getValue('CONFIG', 'DEBOUNCE_FRAMES');
             if (input) {
                 debounceCounters[input]++;
-                if (debounceCounters[input] >= (CONFIG.DEBOUNCE_FRAMES * mult)) {
+                if (debounceCounters[input] >= (frames * mult)) {
                     sendInput(input);
                     resetDebounceCounters();
                 }
@@ -760,7 +1090,7 @@
             resetVisState();
             visState.phase = 'calibration';
             visState.step = 'leftWrist';
-            visState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+            visState.countdown = configPanel.getValue('CONFIG', 'CALIBRATION_COUNTDOWN');
             visState.lastCountdownTime = performance.now();
             visState.startTime = performance.now();
             visState.frameCount = 0;
@@ -784,8 +1114,8 @@
             if (visState.waitForCalibration) return;
 
             const threshold = (visState.step === 'jump' || visState.step === 'squat')
-                ? CONFIG.MIN_SPEED_THRESHOLD_HEAD
-                : CONFIG.MIN_SPEED_THRESHOLD;
+                ? configPanel.getValue('CONFIG', 'MIN_SPEED_THRESHOLD_HEAD')
+                : configPanel.getValue('CONFIG', 'MIN_SPEED_THRESHOLD');
 
             const currentTime = performance.now();
 
@@ -809,7 +1139,7 @@
                     visState.currentAttemptData.minY = Math.min(visState.currentAttemptData.minY, landmark.y);
                 }
 
-                if (currentTime - visState.currentAttemptData.startTime >= CONFIG.ATTEMPT_DURATION) {
+                if (currentTime - visState.currentAttemptData.startTime >= configPanel.getValue('CONFIG', 'ATTEMPT_DURATION')) {
                     finishCalibrationAttempt();
                 }
             }
@@ -842,8 +1172,9 @@
             visState.attempts.push(visState.currentAttemptData.maxSpeed);
 
             if (visState.step === 'jump' || visState.step === 'squat') {
-                calibrationData[visState.step].maxY = visState.currentAttemptData.maxY;
-                calibrationData[visState.step].minY = visState.currentAttemptData.minY;
+                // TODO should be the min, max for any attempt, not for the last only
+                configPanel.setValue('CALIBRATION', 'JUMP_MAX_Y', visState.currentAttemptData.maxY);
+                configPanel.setValue('CALIBRATION', 'SQUAT_MIN_Y', visState.currentAttemptData.minY);
             }
 
             visState.lastAttemptTime = performance.now();
@@ -852,10 +1183,52 @@
 
         }
 
+        function setThreshold(action, value) {
+            if (action === 'LeftWrist') {
+                configPanel.setValue('CALIBRATION', 'LEFT_WRIST_THRESHOLD', value);
+            } else if (action === 'RightWrist') {
+                configPanel.setValue('CALIBRATION', 'RIGHT_WRIST_THRESHOLD', value);
+            } else if (action === 'Jump') {
+                configPanel.setValue('CALIBRATION', 'JUMP_THRESHOLD', value);
+            } else if (action === 'Squat') {
+                configPanel.setValue('CALIBRATION', 'SQUAT_THRESHOLD', value);
+            }
+        }
+
+        function getThreshold(action) {
+            if (action === 'LeftWrist') {
+                return configPanel.getValue('CALIBRATION', 'LEFT_WRIST_THRESHOLD');
+            } else if (action === 'RightWrist') {
+                return configPanel.getValue('CALIBRATION', 'RIGHT_WRIST_THRESHOLD');
+            } else if (action === 'Jump') {
+                return configPanel.getValue('CALIBRATION', 'JUMP_THRESHOLD');
+            } else if (action === 'Squat') {
+                return configPanel.getValue('CALIBRATION', 'SQUAT_THRESHOLD');
+            }
+        }
+
+        function getMinY(action) {
+            if (action === 'Jump') {
+                return configPanel.getValue('CALIBRATION', 'JUMP_MIN_Y');
+            } else if (action === 'Squat') {
+                return configPanel.getValue('CALIBRATION', 'SQUAT_MIN_Y');
+            }
+        }
+
+        function getMaxY(action) {
+            if (action === 'Jump') {
+                return configPanel.getValue('CALIBRATION', 'JUMP_MAX_Y');
+            } else if (action === 'Squat') {
+                return configPanel.getValue('CALIBRATION', 'SQUAT_MAX_Y');
+            }
+        }
 
         function finishCalibrationStep() {
             const avgSpeed = visState.attempts.reduce((a, b) => a + b, 0) / visState.attempts.length;
-            calibrationData[visState.step].threshold = avgSpeed * CONFIG.CALIBRATION_THRESHOLD_MULTIPLIER;
+            const mult = configPanel.getValue('CALIBRATION','CALIBRATION_THRESHOLD_MULTIPLIER')
+            setThreshold(visState.step, avgSpeed * mult);
+            // Should we have different multipliers for different actions?
+            debugPanel.setActionData(visState.step, { target: avgSpeed * mult });
             visState.attempts = [];
             visState.currentAttemptData = { maxSpeed: 0, startTime: 0, maxY: 0, minY: 1 };
         }
@@ -875,7 +1248,7 @@
 
         function restartCalibrationStep() {
             visState.attempts = [];
-            visState.countdown = CONFIG.CALIBRATION_COUNTDOWN;
+            visState.countdown = configPanel.getValue('CALIBRATION', 'CALIBRATION_COUNTDOWN');
             visState.startTime = performance.now();
             updateCalibrationDisplay();
         }
@@ -890,7 +1263,7 @@
                 if (visState.waitForCalibration) {
                     tutorialDisplay.textContent = `Calibrating ${stepName}: Wait for next attempt`;
                 } else {
-                    tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${visState.attempts.length + 1}/${CONFIG.CALIBRATION_ATTEMPTS}`;
+                    tutorialDisplay.textContent = `Calibrating ${stepName}: Perform action ${visState.attempts.length + 1}/${configPanel.getValue('CONFIG','CALIBRATION_ATTEMPTS')}`;
                 }
             }
         }
@@ -920,14 +1293,14 @@
                 return;
             }
 
-            const threshold = calibrationData[step].threshold;
+            const threshold = getThreshold(step);
             const percentOfThreshold = (speed / threshold) * 100;
 
             if (speed >= threshold) {
                 showSuccess(`Great job! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold)`);
                 visState.completed.push(step);
                 moveToNextPracticeStep();
-            } else if (speed >= CONFIG.MIN_SPEED_THRESHOLD) {
+            } else if (speed >= configPanel.getValue('CONFIG','MIN_SPEED_THRESHOLD')) {
                 showWarning(`Close! ${speed.toFixed(0)} speed (${percentOfThreshold.toFixed(0)}% of threshold). Try again!`);
             }
             updatePracticeDisplay();
@@ -1053,9 +1426,9 @@
                 case 'calibration':
                     switch (visState.step) {
                         case 'leftWrist':
-                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < configPanel.getValue('CONFIG','WAIT_TIME')) {
                                 visState.waitForCalibration = true;
-                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                            } else if (visState.attempts.length === configPanel.getValue('CONFIG','CALIBRATION_ATTEMPTS')) {
                                 visState.waitForCalibration = false;
                                 finishCalibrationStep();
                                 resetVisState();
@@ -1067,12 +1440,12 @@
                             }
                             break;
                         case 'rightWrist':
-                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < configPanel.getValue('CONFIG','WAIT_TIME')) {
                                 visState.waitForCalibration = true;
-                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                            } else if (visState.attempts.length === config.getValue('CALIBRATION','CALIBRATION_ATTEMPTS')) {
                                 visState.waitForCalibration = false;
                                 finishCalibrationStep();
-                                resetVisState
+                                resetVisState();
                                 visState.phase = 'calibration';
                                 visState.step = 'jump';
                                 updateCalibrationDisplay();
@@ -1081,9 +1454,9 @@
                             }
                             break;
                         case 'jump':
-                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < configPanel.getValue('CONFIG','WAIT_TIME')) {
                                 visState.waitForCalibration = true;
-                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                            } else if (visState.attempts.length === configPanel.getValue('CALIBRATION','CALIBRATION_ATTEMPTS')) {
                                 visState.waitForCalibration = false;
                                 finishCalibrationStep();
                                 resetVisState();
@@ -1095,18 +1468,13 @@
                             }
                             break;
                         case 'squat':
-                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < CONFIG.WAIT_TIME) {
+                            if (visState.attempts.length > 0 && (performance.now() - visState.lastAttemptTime) < configPanel.getValue('CONFIG','WAIT_TIME')) {
                                 visState.waitForCalibration = true;
-                            } else if (visState.attempts.length === CONFIG.CALIBRATION_ATTEMPTS) {
+                            } else if (visState.attempts.length === configPanel.getValue('CALIBRATION','CALIBRATION_ATTEMPTS')) {
                                 resetVisState();
                                 visState.phase = 'game'; // Add a countdown here
-                                document.getElementById('videoCanvas').style.display = 'none';
-                                document.getElementById('gameCanvas').style.display = 'block';
-                                document.getElementById('startGame').style.display = 'none';
-                                isGameRunning = true;
                                 updateCalibrationDisplay();
-                                resetVisState();
-                                gameLoop();
+                                startGame();
                             } else {
                                 visState.waitForCalibration = false;
                             }
@@ -1148,6 +1516,7 @@
 
             // A jump or squat should override any ongoing left or right motion. The reason is
             // that when you jump or squat, your arms will probably move too. 
+            console.log(name, speed)
             if (name === 'nose') {
                 processLandmarkNose(landmark, speed);
 
@@ -1155,65 +1524,85 @@
                 processLandmarkWrist(landmark, name, speed);
 
             }
+            updateDebugPanel(landmark, name, speed);
         }
 
+        function updateDebugPanel(landmark, name, speed) {
+            switch (name) {
+                case 'leftWrist':
+                    debugPanel.setActionData('leftWrist', { speed: speed });
+                    break;
+                case 'rightWrist':
+                    debugPanel.setActionData('rightWrist', { speed: speed });
+                    break;
+                case 'nose':
+                    if (landmark.y < getMinY('jump')) {
+                        debugPanel.setActionData('jump', { speed: speed })
+                    } else if (landmark.y > getMaxY('squat')) {
+                        debugPanel.setActionData('squat', { speed: speed });
+                    }
+                    break;
+            }
+        }
+
+        // New version that checks if Y is greater than average between min and max from calibration
         function processLandmarkNose(landmark, speed) {
-            // Start jump or squat
-            // If leftWrist or rightWrist is going, override it
-            if (!visState.currentMotionData.engaged ||
-                (visState.currentMotionData.action == 'leftWrist' || visState.currentMotionData.action == 'rightWrist')
-            ) {
-                const y = landmark.y;
-                const mult = CONFIG.THRESHOLD_START_MULT
-                if (y < calibrationData.jump.minY && speed > calibrationData.jump.threshold * mult) {
+            const y = landmark.y;
+            let squatMinY = getMinY('squat');
+            let jumpMinY = getMinY('jump');
+            let squatMaxY = getMaxY('squat');  
+            let jumpMaxY = getMaxY('jump');
+            const jumpYThreshold = jumpMinY + (jumpMaxY - jumpMinY) * 0.5;
+            const squatYThreshold = jumpMinY + (squatMaxY - squatMinY) * 0.5;
+            const mult = configPanel.getValue('CONFIG', 'CONFIG.THRESHOLD_START_MULT');
+
+            if (!visState.currentMotionData.engaged) {
+                if (y < jumpYThreshold && speed > getThreshold('jump') * mult) {
                     visState.currentMotionData = {
                         engaged: true,
                         action: 'jump'
                     };
-                    console.log("JUMP", speed, calibrationData.jump.threshold)
-                    debugPanel.setActionData('jump', {
-                        speed: speed
-                    });
-                } else if (y > calibrationData.squat.maxY && speed > calibrationData.squat.threshold * mult) {
+                    debugPanel.setLastAction('JumpInProgress');
+                } else if (y > squatYThreshold && speed > getThreshold('squat') * mult) {
                     visState.currentMotionData = {
                         engaged: true,
                         action: 'squat'
                     };
-                    console.log("SQUAT", speed, calibrationData.squat.threshold)
-                    debugPanel.setActionData('squat', { speed: speed });
+                    debugPanel.setLastAction('SquatInProgress');
                 }
-                // End jump or squat
-            } else {
-                action = visState.currentMotionData.action;
-                const mult = CONFIG.THRESHOLD_END_MULT;
-                if (speed < calibrationData[action].threshold * mult) {
+            } else if (visState.currentMotionData.action === 'jump' || visState.currentMotionData.action === 'squat') {
+                const action = visState.currentMotionData.action;
+                const endMult = configPanel.getValue('CONFIG','THRESHOLD_END_MULT');
+                if (speed < getThreshold(action) * endMult) {
                     visState.currentMotionData.engaged = false;
                     sendAction(action);
-                    debugPanel.setActionData(action, { speed: speed });
+                    debugPanel.setLastAction(action);
                 }
             }
         }
 
         function processLandmarkWrist(landmark, name, speed) {
             // Start leftWrist or rightWrist
-            if (!visState.currentMotionData.engaged) {
-                const threshold = calibrationData[name].threshold;
-                const mult = CONFIG.THRESHOLD_START_MULT;
-                if (speed > threshold * mult) {
-                    visState.currentMotionData = {
-                        engaged: true,
-                        action: name
-                    };
-                    debugPanel.setActionData(name, { speed: speed });
-                }
-            } else {
+            const threshold = getThreshold(name);
+            const mult = configPanel.getValue('CONFIG','THRESHOLD_START_MULT');
+            if (speed > threshold * mult) {
+                visState.currentMotionData = {
+                    engaged: true,
+                    action: name
+                };
+                debugPanel.setActionData(name, { speed: speed });
+                debugPanel.setLastAction(name + 'InProgress')
+            } else if (visState.currentMotionData.engaged && visState.currentMotionData.action === name) {
                 // End leftWrist or rightWrist
+                // Bug -- obviusly this COULD be ending a DIFFERENT action, eg
+                // right wrist starts action, left wrist stops it 
+
                 action = visState.currentMotionData.action;
-                const mult = CONFIG.THRESHOLD_END_MULT;
-                if (speed < calibrationData[action].threshold * mult) {
+                const mult = configPanel.getValue('CONFIG','THRESHOLD_END_MULT');
+                if (speed < threshold * mult) {
                     visState.currentMotionData.engaged = false;
                     sendAction(action)
-                    debugPanel.setActionData(action, { speed: speed });
+                    debugPanel.setLastAction(name)
                 }
             }
         }
@@ -1263,7 +1652,7 @@
 
         function isAnomaly(speed) {
             if (speedStats.count < 30) return false; // Wait for enough data
-            return Math.abs(speed - speedStats.mean) > CONFIG.ANOMALY_MULTIPLIER * speedStats.stdDev;
+            return Math.abs(speed - speedStats.mean) > configPanel.getValue('CONFIG','ANOMALY_MULTIPLIER') * speedStats.stdDev;
         }
 
         function calculateSpeed(landmark, name, frame) {
@@ -1281,13 +1670,13 @@
             const oldestPosition = history[0];
             const dt = (currentTime - oldestPosition.time) / 1000; // in seconds
 
-            if (dt < CONFIG.MIN_TIME_THRESHOLD) return 0;
+            if (dt < configPanel.getValue('CONFIG','MIN_TIME_THRESHOLD')) return 0;
 
             const dx = currentPosition.x - oldestPosition.x;
             const dy = currentPosition.y - oldestPosition.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance < CONFIG.MIN_MOVEMENT_THRESHOLD || distance > CONFIG.MAX_MOVEMENT_THRESHOLD) {
+            if (distance < configPanel.getValue('CONFIG','MIN_MOVEMENT_THRESHOLD') || distance > configPanel.getValue('CONFIG','MAX_MOVEMENT_THRESHOLD')) {
                 return 0;
             }
 
@@ -1298,7 +1687,7 @@
 
             // Update history
             history.push(currentPosition);
-            if (history.length > CONFIG.HISTORY_SIZE) {
+            if (history.length > configPanel.getValue('CONFIG','HISTORY_SIZE')) {
                 history.shift();
             }
 
@@ -1306,7 +1695,7 @@
         }
 
         function updateEMAAlpha() {
-            EMA_ALPHA = 1 / CONFIG.SMOOTHING_LEVEL;
+            EMA_ALPHA = 1 / configPanel.getValue('CONFIG','SMOOTHING_LEVEL');
         }
 
 
@@ -1354,6 +1743,15 @@
             alertDisplay.textContent = '';
         }
 
+        function startGame() {
+            visState.phase = 'game';
+            document.getElementById('videoCanvas').style.display = 'none';
+            document.getElementById('gameCanvas').style.display = 'block';
+            document.getElementById('startGame').style.display = 'none';
+            isGameRunning = true;
+            resetGameState();
+            gameLoop();
+        }
         // Event Listeners
         document.getElementById('startCalibration').addEventListener('click', startCalibration);
         document.getElementById('restartCalibration').addEventListener('click', startCalibration);
@@ -1364,13 +1762,7 @@
             }
         });
         document.getElementById('startGame').addEventListener('click', () => {
-            visState.phase = 'game';
-            document.getElementById('videoCanvas').style.display = 'none';
-            document.getElementById('gameCanvas').style.display = 'block';
-            document.getElementById('startGame').style.display = 'none';
-            isGameRunning = true;
-            resetGameState();
-            gameLoop();
+            startGame();
         });
 
 
